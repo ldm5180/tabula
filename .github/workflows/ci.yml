@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Run JavaScript actions on Node 24 now (the default from 2026-06-16).  This
+# silences the Node 20 deprecation warnings, including those from the actions
+# that alire-project/setup-alire@v6 (the latest) pins internally
+# (actions/cache/restore, actions/setup-node), which we can't bump ourselves.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Alire + GNAT toolchain
+        uses: alire-project/setup-alire@v6
+        # Keep CI on the same GNAT major as local dev and the sibling
+        # crates (tempus, nuntius); bump deliberately, not by drift.
+        with:
+          toolchain: gnat_native^15 gprbuild
+
+      - name: Toolchain fingerprint for cache keys
+        # Fold the toolchain version into every cache key below, so a
+        # compiler bump starts a fresh dependency cache.
+        run: |
+          ver="$( { alr --version; alr toolchain; } 2>/dev/null || true )"
+          echo "ALR_TOOLVER=$(printf '%s' "$ver" \
+                              | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
+
+      - name: Cache the Alire dependency builds
+        # Alire 2's build cache is content-addressed per
+        # crate+configuration, so restoring it turns the ada_toml build
+        # into seconds; the key rotates when alire.toml or the toolchain
+        # changes.
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.local/share/alire/builds
+            ~/.local/share/alire/releases
+          key: alire-deps-${{ runner.os }}-${{ env.ALR_TOOLVER }}-${{ hashFiles('alire.toml') }}
+          restore-keys: |
+            alire-deps-${{ runner.os }}-${{ env.ALR_TOOLVER }}-
+
+      - name: Build the library (validation profile)
+        # The `validation` profile adds -gnatwe (warnings are errors),
+        # -gnata (assertions/contracts) and -gnato (overflow checks) on top
+        # of the default warning + style set, so CI fails on any warning.
+        # The profile is persisted in config/ and inherited by later steps.
+        run: alr --non-interactive build --validation
+
+      - name: Run the test suite (release -O3 and debug -O0)
+        # `alr test` builds tests/test_tabula.gpr and runs the AUnit runner
+        # twice -- once per MODE (see the [[actions]] in alire.toml) --
+        # exiting non-zero on any failed assertion.  The suite is fully
+        # offline.
+        run: alr --non-interactive test
+
+      - name: Build & run the example (both modes)
+        # The examples are pure (no network, no files), so CI runs them.
+        run: |
+          make run
+          make debug
+          ./example/bin/debug/toml_fields
+
+  proof:
+    name: SPARK proof
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Alire + GNAT toolchain
+        uses: alire-project/setup-alire@v6
+        with:
+          toolchain: gnat_native^15 gprbuild
+
+      - name: Toolchain fingerprint for cache keys
+        run: |
+          ver="$( { alr --version; alr toolchain; } 2>/dev/null || true )"
+          echo "ALR_TOOLVER=$(printf '%s' "$ver" \
+                              | sha256sum | cut -c1-12)" >> "$GITHUB_ENV"
+
+      - name: Cache the Alire dependency builds
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.local/share/alire/builds
+            ~/.local/share/alire/releases
+          key: alire-deps-${{ runner.os }}-${{ env.ALR_TOOLVER }}-${{ hashFiles('alire.toml') }}
+          restore-keys: |
+            alire-deps-${{ runner.os }}-${{ env.ALR_TOOLVER }}-
+
+      - name: Build
+        # Populates the config/ tree so the proof project's sources compile
+        # for gnatprove.
+        run: alr --non-interactive build
+
+      - name: Install gnatprove
+        run: |
+          alr --non-interactive install --prefix="$HOME/.alire" gnatprove
+          echo "$HOME/.alire/bin" >> "$GITHUB_PATH"
+
+      - name: Prove
+        # --checks-as-errors=on fails the job if any check is unproved.
+        run: alr exec -- gnatprove -P proof/proof.gpr -j0 --level=2 --checks-as-errors=on
+
+  format:
+    name: Formatting (gnatformat --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Alire + GNAT toolchain
+        uses: alire-project/setup-alire@v6
+        with:
+          toolchain: gnat_native^15 gprbuild
+
+      - name: Install gnatformat
+        run: |
+          alr --non-interactive install --prefix="$HOME/.alire" gnatformat_bin
+          echo "$HOME/.alire/bin" >> "$GITHUB_PATH"
+
+      - name: Check formatting
+        run: |
+          files=$(git ls-files 'src/*/*.ad[sb]' 'tests/src/*.ad[sb]' \
+                               'example/src/*.ad[sb]' 'proof/src/*.ad[sb]')
+          echo "Checking:"; echo "$files"
+          gnatformat --no-project --check $files
