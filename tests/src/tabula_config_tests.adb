@@ -192,11 +192,60 @@ package body Tabula_Config_Tests is
          "and the empty table falls back everywhere");
    end Test_Missing_File;
 
+   --  Array-of-tables walking ([[trades]]): each sub-table arrives
+   --  carrying the root's label and warner; an absent key does
+   --  nothing silently; a non-array warns and does nothing; a
+   --  non-table entry warns and is skipped.
+   procedure Test_Table_Arrays (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root  : Table;
+      Seen  : Unbounded_String;
+      Count : Natural := 0;
+
+      procedure Note (Item : Table) is
+      begin
+         Count := Count + 1;
+         Append (Seen, Get (Item, "name", "?") & ";");
+      end Note;
+
+   begin
+      Parse_Sample
+        ("[[trades]]"
+         & ASCII.LF
+         & "name = ""alpha"""
+         & ASCII.LF
+         & "[[trades]]"
+         & ASCII.LF
+         & "name = ""beta"""
+         & ASCII.LF,
+         Root);
+
+      Each_Section (Root, "trades", Note'Access);
+      Assert (Count = 2, "both sub-tables walked");
+      Assert (To_String (Seen) = "alpha;beta;", "in file order");
+
+      Each_Section (Root, "absent", Note'Access);
+      Assert (Count = 2, "an absent key walks nothing");
+      Assert (Warnings = Null_Unbounded_String, "and does so silently");
+
+      Parse_Sample ("trades = 5", Root);
+      Each_Section (Root, "trades", Note'Access);
+      Assert (Count = 2, "a non-array walks nothing");
+      Assert (Warned ("not an array"), "and warns");
+
+      Parse_Sample ("trades = [1, 2]", Root);
+      Each_Section (Root, "trades", Note'Access);
+      Assert (Count = 2, "non-table entries are skipped");
+      Assert (Warned ("non-table"), "each with a warning");
+   end Test_Table_Arrays;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
       Register_Routine
         (T, Test_Policy'Access, "absent is silent, wrong-typed warns");
+      Register_Routine
+        (T, Test_Table_Arrays'Access, "array-of-tables walking");
       Register_Routine
         (T, Test_Bounds'Access, "Min and Require_Non_Empty guards");
       Register_Routine

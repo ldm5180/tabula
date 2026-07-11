@@ -224,4 +224,32 @@ package body Tabula.Config is
       end loop;
    end Each_String;
 
+   procedure Each_Section
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : Table))
+   is
+      V : constant TOML.TOML_Value := Lookup (T, Key);
+   begin
+      if TOML.Is_Null (V) then
+         return;
+      end if;
+      if TOML.Kind (V) /= TOML.TOML_Array then
+         Complain (T, Key & " is not an array; ignoring it");
+         return;
+      end if;
+
+      for I in 1 .. TOML.Length (V) loop
+         declare
+            Item : constant TOML.TOML_Value := TOML.Item (V, I);
+         begin
+            if TOML.Kind (Item) = TOML.TOML_Table then
+               Process ((Value => Item, Label => T.Label, Warn => T.Warn));
+            else
+               Complain (T, "non-table " & Key & " entry skipped");
+            end if;
+         end;
+      end loop;
+   end Each_Section;
+
 end Tabula.Config;

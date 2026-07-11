@@ -87,6 +87,15 @@ package Tabula.Config is
       Key     : String;
       Process : not null access procedure (Item : String));
 
+   --  Walk the sub-tables of an array-of-tables knob ([[trades]]),
+   --  each carrying the root's label and warner: an absent key does
+   --  nothing, a non-array warns and does nothing, each non-table
+   --  entry warns and is skipped.
+   procedure Each_Section
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : Table));
+
 private
 
    type Table is record
