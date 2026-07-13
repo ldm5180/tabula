@@ -53,6 +53,14 @@ package Tabula.Config is
 
    function Get (T : Table; Key : String; Fallback : Boolean) return Boolean;
 
+   --  Whether Key is present at all, of any type, valid or not -- no
+   --  fallback, no coercion, never warns.  The one presence primitive a
+   --  caller needs to build its OWN resolution policy (e.g. layering
+   --  several tables and asking which one actually set a key) over the
+   --  typed Get functions; that policy is application-specific and does
+   --  not belong in this generic reader.
+   function Has (T : Table; Key : String) return Boolean;
+
    --  A count knob; Min guards the knobs a zero (or too-small value)
    --  would break.  Out-of-range values warn and fall back like wrong
    --  types.

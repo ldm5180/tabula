@@ -239,6 +239,19 @@ package body Tabula_Config_Tests is
       Assert (Warned ("non-table"), "each with a warning");
    end Test_Table_Arrays;
 
+   procedure Test_Has (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample
+        ("flag = false" & ASCII.LF & "wrong = ""not a number""", Root);
+
+      Assert (Has (Root, "flag"), "a present key, even a falsy one");
+      Assert (Has (Root, "wrong"), "a present key of any type/validity");
+      Assert (not Has (Root, "absent"), "an absent key");
+      Assert (Warnings = Null_Unbounded_String, "Has never warns");
+   end Test_Has;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -257,6 +270,7 @@ package body Tabula_Config_Tests is
         (T, Test_Malformed'Access, "malformed input is a result");
       Register_Routine
         (T, Test_Missing_File'Access, "missing file is a distinct status");
+      Register_Routine (T, Test_Has'Access, "presence check, no fallback");
    end Register_Tests;
 
    overriding

@@ -97,6 +97,9 @@ package body Tabula.Config is
       return (Value => V, Label => Root.Label, Warn => Root.Warn);
    end Section;
 
+   function Has (T : Table; Key : String) return Boolean
+   is (not TOML.Is_Null (Lookup (T, Key)));
+
    function Get (T : Table; Key : String; Fallback : Boolean) return Boolean is
       V : constant TOML.TOML_Value := Lookup (T, Key);
    begin
