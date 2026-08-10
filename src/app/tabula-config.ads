@@ -79,10 +79,11 @@ package Tabula.Config is
 
    --  A real-valued knob: TOML integers (2 is as good as 2.0), regular
    --  floats, or quoted plain decimals ("0.02", always exact).  The
-   --  quoted form exists because ada_toml 0.5.0 reassembles bare floats
-   --  from an INTEGER fraction, dropping the fraction's leading zeros --
-   --  0.02 loads as 0.2 and 1.05 as 1.5 -- so decimal-shaped knobs must
-   --  be quotable.  The quoted shape is checked by the proven
+   --  quoted form predates the ada_toml pin: 0.5.0 reassembled bare
+   --  floats from an INTEGER fraction, dropping the fraction's leading
+   --  zeros -- 0.02 loaded as 0.2 and 1.05 as 1.5 -- so decimal-shaped
+   --  knobs had to be quotable.  The pinned parser keeps those zeros;
+   --  the quoted shape stays supported, checked by the proven
    --  Tabula.Decimals.Is_Plain_Decimal before conversion.
    function Get
      (T : Table; Key : String; Fallback : Long_Float) return Long_Float;

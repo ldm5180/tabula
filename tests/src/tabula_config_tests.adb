@@ -96,6 +96,10 @@ package body Tabula_Config_Tests is
          & ASCII.LF
          & "plain = 1.5"
          & ASCII.LF
+         & "small = 0.02"
+         & ASCII.LF
+         & "mixed = 1.05"
+         & ASCII.LF
          & "quoted = ""0.02"""
          & ASCII.LF
          & "fancy = ""1e3""",
@@ -106,6 +110,12 @@ package body Tabula_Config_Tests is
          "an integer is as good as a float");
       Assert
         (Get (Root, "plain", Fallback => 0.0) = 1.5, "a regular float reads");
+      Assert
+        (Get (Root, "small", Fallback => 0.0) = 0.02,
+         "a bare float keeps its fraction's leading zeros");
+      Assert
+        (Get (Root, "mixed", Fallback => 0.0) = 1.05,
+         "even behind a non-zero integer part");
       Assert
         (Get (Root, "quoted", Fallback => 0.0) = 0.02,
          "a quoted plain decimal reads exactly");

@@ -15,6 +15,13 @@ project-files = ["tabula.gpr"]
 ada_toml = "~0.5.0"
 aunit = "^26.0.0"
 
+#  ada_toml: pinned one commit past the v0.5 tag, to upstream's fix for
+#  the fraction leading-zero bug (0.02 parsed as 0.2 -- PR #17); the
+#  index has no release carrying it.  The quoted-decimal knob form
+#  predates this pin and stays supported.
+[[pins]]
+ada_toml = { url = "https://github.com/pmderodat/ada-toml.git", commit = "485b71c8c5d58cbdafeb925afbbe22590a2eada2" }
+
 [build-switches]
 "*".ada_version = "Ada2022"
 
