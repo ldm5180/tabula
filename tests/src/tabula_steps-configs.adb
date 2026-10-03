@@ -8,9 +8,11 @@ package body Tabula_Steps.Configs is
 
    type Guard_Kind is (Always, Doc_Given);
 
-   type Action_Kind is (A_Nothing, A_Parse, A_Refuse_Doc);
+   type Action_Kind is
+     (A_Nothing, A_Parse, A_Refuse_Doc, A_Check_Silent, A_Check_Warned);
 
    Label_Capture : constant := 1;
+   Key_Capture   : constant := 1;
 
    function Evaluate
      (G : Guard_Kind; Ctx : Step_Context; Evt : Step_Kind) return Boolean
@@ -27,6 +29,8 @@ package body Tabula_Steps.Configs is
    with Pre => Fabula.Args.Has_Doc (Ctx.A)
    is
    begin
+      Ctx.W.Label :=
+        To_Unbounded_String (Fabula.Args.Text (Ctx.A, Label_Capture));
       Tabula_World.Parse
         (Content => Fabula.Args.Doc_String (Ctx.A),
          Label   => Fabula.Args.Text (Ctx.A, Label_Capture),
@@ -35,21 +39,44 @@ package body Tabula_Steps.Configs is
          Error   => Ctx.W.Error);
    end Parse;
 
+   procedure Find_Complaint (Ctx : in out Step_Context) is
+      Key : constant String := Fabula.Args.Word (Ctx.A, Key_Capture);
+   begin
+      Fabula.Check.Is_True
+        (Ctx.R,
+         Tabula_World.Complained (To_String (Ctx.W.Label), Key),
+         "no complaint from "
+         & To_String (Ctx.W.Label)
+         & " names "
+         & Key
+         & "; warned:"
+         & Tabula_World.Warnings_Text);
+   end Find_Complaint;
+
    procedure Execute
      (A : Action_Kind; Ctx : in out Step_Context; Evt : Step_Kind)
    is
       pragma Unreferenced (Evt);
    begin
       case A is
-         when A_Nothing    =>
+         when A_Nothing      =>
             null;
 
-         when A_Parse      =>
+         when A_Parse        =>
             Parse (Ctx);
 
-         when A_Refuse_Doc =>
+         when A_Refuse_Doc   =>
             Fabula.Check.Fail_Step
               (Ctx.R, "the config is the step's doc string, and it has none");
+
+         when A_Check_Silent =>
+            Fabula.Check.Is_True
+              (Ctx.R,
+               Tabula_World.Silent,
+               "warned:" & Tabula_World.Warnings_Text);
+
+         when A_Check_Warned =>
+            Find_Complaint (Ctx);
       end case;
    end Execute;
 
@@ -66,12 +93,16 @@ package body Tabula_Steps.Configs is
    use Flow.Machines;
    use Flow.Op;
 
-   Parse_Doc : constant Ev := (Kind => E_Parse_Doc);
+   Parse_Doc    : constant Ev := (Kind => E_Parse_Doc);
+   Check_Silent : constant Ev := (Kind => E_Check_Silent);
+   Check_Warned : constant Ev := (Kind => E_Check_Warned);
 
    --!format off
    Table : constant Transition_Table :=
-     [Unparsed + Parse_Doc (Doc_Given) / A_Parse      >= Parsed,
-      Unparsed + Parse_Doc             / A_Refuse_Doc >= Unparsed];
+     [Unparsed + Parse_Doc (Doc_Given) / A_Parse        >= Parsed,
+      Unparsed + Parse_Doc             / A_Refuse_Doc   >= Unparsed,
+      Parsed   + Check_Silent          / A_Check_Silent >= Parsed,
+      Parsed   + Check_Warned          / A_Check_Warned >= Parsed];
    --!format on
 
    Current : State := Unparsed;
