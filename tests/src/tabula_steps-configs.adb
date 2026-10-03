@@ -9,10 +9,16 @@ package body Tabula_Steps.Configs is
    type Guard_Kind is (Always, Doc_Given);
 
    type Action_Kind is
-     (A_Nothing, A_Parse, A_Refuse_Doc, A_Check_Silent, A_Check_Warned);
+     (A_Nothing,
+      A_Parse,
+      A_Refuse_Doc,
+      A_Take_Section,
+      A_Check_Silent,
+      A_Check_Warned);
 
    Label_Capture : constant := 1;
    Key_Capture   : constant := 1;
+   Name_Capture  : constant := 1;
 
    function Evaluate
      (G : Guard_Kind; Ctx : Step_Context; Evt : Step_Kind) return Boolean
@@ -69,6 +75,11 @@ package body Tabula_Steps.Configs is
             Fabula.Check.Fail_Step
               (Ctx.R, "the config is the step's doc string, and it has none");
 
+         when A_Take_Section =>
+            Ctx.W.Root :=
+              Tabula.Config.Section
+                (Ctx.W.Root, Fabula.Args.Word (Ctx.A, Name_Capture));
+
          when A_Check_Silent =>
             Fabula.Check.Is_True
               (Ctx.R,
@@ -94,6 +105,7 @@ package body Tabula_Steps.Configs is
    use Flow.Op;
 
    Parse_Doc    : constant Ev := (Kind => E_Parse_Doc);
+   Take_Section : constant Ev := (Kind => E_Take_Section);
    Check_Silent : constant Ev := (Kind => E_Check_Silent);
    Check_Warned : constant Ev := (Kind => E_Check_Warned);
 
@@ -101,6 +113,7 @@ package body Tabula_Steps.Configs is
    Table : constant Transition_Table :=
      [Unparsed + Parse_Doc (Doc_Given) / A_Parse        >= Parsed,
       Unparsed + Parse_Doc             / A_Refuse_Doc   >= Unparsed,
+      Parsed   + Take_Section          / A_Take_Section >= Parsed,
       Parsed   + Check_Silent          / A_Check_Silent >= Parsed,
       Parsed   + Check_Warned          / A_Check_Warned >= Parsed];
    --!format on

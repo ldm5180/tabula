@@ -19,6 +19,7 @@ package Tabula_Steps is
    --  event of that region's state machine, in its own child package.
    type Step_Kind is
      (E_Parse_Doc,
+      E_Take_Section,
       E_Check_Silent,
       E_Check_Warned,
       E_Read_Bool,
@@ -32,7 +33,10 @@ package Tabula_Steps is
       E_Check_Text,
       E_Check_Default,
       E_Check_Present,
-      E_Check_Absent);
+      E_Check_Absent,
+      E_Walk_Strings,
+      E_Walk_Sections,
+      E_Check_Items);
 
    --  A scenario starts from a fresh world; the world holds no resource
    --  that would need stopping after it.
@@ -67,7 +71,7 @@ package Tabula_Steps is
    --  What one scenario reads back.  fabula copies it per step, so it
    --  holds values only: the table in hand (a reference to the parsed
    --  document) and its label, what was read from it, and the default
-   --  the read was given.
+   --  the read was given, and what a walk visited.
    type World is record
       Root    : Tabula.Config.Table;
       Label   : Unbounded_String;
@@ -75,6 +79,7 @@ package Tabula_Steps is
       Error   : Unbounded_String;
       Got     : Reading;
       Default : Reading;
+      Items   : Unbounded_String;
    end record;
 
    --  One step as a machine sees it: the scenario, the step's arguments,
@@ -112,6 +117,7 @@ package Tabula_Steps is
    --!format off
    Step_Defs : constant Steps.Step_Table :=
      [Step ("a config labelled {string}:")                      >= E_Parse_Doc,
+      Step ("the section {word}")                               >= E_Take_Section,
       Step ("nothing was warned")                               >= E_Check_Silent,
       Step ("{word} was complained about")                      >= E_Check_Warned,
       Step ("the boolean {word} is read with default {word}")   >= E_Read_Bool,
@@ -127,7 +133,10 @@ package Tabula_Steps is
       Step ("the reading is the text {string}")                 >= E_Check_Text,
       Step ("the reading is {word}")                            >= E_Check_Reading,
       Step ("it is present")                                    >= E_Check_Present,
-      Step ("it is absent")                                     >= E_Check_Absent];
+      Step ("it is absent")                                     >= E_Check_Absent,
+      Step ("the strings of {word} are walked")                 >= E_Walk_Strings,
+      Step ("the sections of {word} are walked")                >= E_Walk_Sections,
+      Step ("the items were {string}")                          >= E_Check_Items];
    --!format on
 
    Hook_Defs : constant Steps.Hook_Table := [Before >= Fresh_World];

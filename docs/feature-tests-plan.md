@@ -587,6 +587,14 @@ read step for the same reason.
   array` is the suite's assertion and stays there.
 - **RED first:** `the section trading` is `UNDEFINED`; green on the
   section's boolean reading false through `Section`.
+- **As built:** nine scenarios over one Background: three sections
+  (one read through, one missing, one a non-table key), and six walks
+  -- each walker over its array, over an absent key, over a scalar,
+  and `Each_Section` over the string array, whose entries are each
+  complained about.  `the section {word}` is a `config` row (the
+  table in hand becomes the section); the walkers and `the items were
+  {string}` are a third region, `walks` (`Unwalked` -> `Walked`),
+  whose walk rows ask `config` for a table like the reads do.
 
 ### F6 -- `files.feature`: a file is loaded, missing, or malformed
 

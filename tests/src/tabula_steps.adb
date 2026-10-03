@@ -3,6 +3,7 @@ with Fabula.Numbers;
 
 with Tabula_Steps.Configs;
 with Tabula_Steps.Knobs;
+with Tabula_Steps.Walks;
 with Tabula_World;
 
 package body Tabula_Steps is
@@ -53,11 +54,13 @@ package body Tabula_Steps is
 
    Config_Name : aliased constant String := "config";
    Knobs_Name  : aliased constant String := "knobs";
+   Walks_Name  : aliased constant String := "walks";
 
    --!format off
    Regions : constant array (Positive range <>) of Region :=
      [(Config_Name'Access, Configs.Offer'Access, Configs.Reset'Access, Configs.Phase'Access),
-      (Knobs_Name'Access,  Knobs.Offer'Access,   Knobs.Reset'Access,   Knobs.Phase'Access)];
+      (Knobs_Name'Access,  Knobs.Offer'Access,   Knobs.Reset'Access,   Knobs.Phase'Access),
+      (Walks_Name'Access,  Walks.Offer'Access,   Walks.Reset'Access,   Walks.Phase'Access)];
    --!format on
 
    --  Every region's state, for the step no region would take.
