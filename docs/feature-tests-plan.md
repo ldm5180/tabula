@@ -561,6 +561,13 @@ read step for the same reason.
   text comparison -- and the mutation `the reading is 0.2` fails with
   `the reading was 0.02`.  `Test_Reals`' assertion on the wording
   (`fancy is not a number`) stays in the suite.
+- **As built:** the mutation `the reading is 0.2` fails `Value
+  2.00000000000000E-02 is not equal to 2.00000000000000E-01` (fabula's
+  own comparison text), and an expectation the gate refuses (`2e-2`)
+  fails `2e-2 is not a plain decimal`.  With the reader's gate
+  bypassed in `src/` (a mutation, restored), the three fancy shapes
+  fail `the reading is 1.00000000000000E+03, not the default ...` --
+  the feature binds the gate through what the reader returns.
 
 ### F5 -- `sections.feature`: a config is tables and arrays
 
