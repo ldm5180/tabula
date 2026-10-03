@@ -55,10 +55,15 @@ Dry_Run : constant Boolean :=
 ```sh
 make build    # build the library
 make test     # AUnit suite, both -O modes, fully offline
+make features # the Gherkin features, both -O modes, fully offline
+make features-report  # the features as an HTML page (needs node)
 make prove    # SPARK proof, --checks-as-errors=on
 make format   # gnatformat --check
 make run      # run the toml_fields example (pure; CI runs it too)
 make help     # all targets
 ```
+
+What a config does to a run, stated as Gherkin features and run on
+every push, is published at https://ldm5180.github.io/tabula/.
 
 Conventions (SPARK, strict TDD, commit style) live in [CLAUDE.md](CLAUDE.md).
