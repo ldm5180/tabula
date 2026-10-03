@@ -1,5 +1,10 @@
 # Feature tests plan
 
+**Status:** implemented 2026-10-03 (F0-F9), on branch `feature-tests`:
+four features, 29 scenarios, every AUnit test kept.  Where the build
+departed from the draft, the item says so under **As built**, and the
+last revision note gathers it.
+
 The crate's behavior, stated in Gherkin and run against the real
 reader.  `*.feature` files under `tests/features/` say what a config
 file does to a run -- a knob reads with its type, an absent knob keeps
@@ -180,7 +185,7 @@ text, never through a `Long_Float` capture (the first Do-not).
 | `the strings of {word} are walked` | `E_Walk_Strings` | `Each_String`, the items kept in order |
 | `the sections of {word} are walked` | `E_Walk_Sections` | `Each_Section`, each item's `name` kept |
 | `{word} is asked for` | `E_Ask_Has` | `Has (T, key)` |
-| `the config loaded` / `is malformed` / `is missing` | `E_Check_Status` | the kept `Load_Status`; `malformed` also wants a non-empty error |
+| `the config loaded` / `is malformed` / `is missing` | `E_Check_Loaded` / `E_Check_Malformed` / `E_Check_Missing` | the kept `Load_Status`; `malformed` also wants a non-empty error |
 | `the reading is {word}` | `E_Check_Reading` | the kept reading against the capture's text, by the reading's kind (3.3) |
 | `the reading is the default` | `E_Check_Default` | the kept reading equals the fallback the read step gave |
 | `nothing was warned` | `E_Check_Silent` | the recorded warnings are empty |
@@ -694,6 +699,11 @@ read step for the same reason.
 - **RED first:** none -- this item changes no code; it lands as the
   paragraph in the plan's revision notes and the line in CLAUDE.md
   (F9).
+- **As built:** judged against the tree after F6, and unchanged: the
+  ten AUnit tests stay, 10/10 in both modes, every assertion as it
+  was.  Each lifted test is one getter or walker against ada_toml
+  holding the exact warning text; none is an integration test a
+  scenario supplants.
 
 ### F9 -- The docs say so
 
@@ -805,3 +815,19 @@ session scratchpad, GNAT 15.2.0, gprbuild 26.0.1, 2026-10-03:
   clean: the reading checks, `the reading is the default`, the
   status checks, `it is present/absent`, `the items were`, `nothing
   was warned` -- each reads a public result.
+- **Implementation (2026-10-03, F0-F9):** what the build changed.
+  The machines split by what a step acts on, not by feature file
+  (3.1): the four features share one vocabulary and a step is taken by
+  exactly one region, so `config` gives the table and holds the
+  warning checks, `knobs` reads and checks readings (decimals
+  included), `walks` walks.  The smoke feature is `knobs.feature`'s
+  first scenario, grown by F3, so nothing was added to be removed.  No
+  `Stop_World` hook: the world holds nothing to stop.  `Has` is a
+  reading kind, so presence checks are rows of `Read`; a read in
+  `Read` re-posts itself into `Unread` instead of duplicating its
+  rows, and no `E_Reading_Kept` follow-up was needed.  The one
+  follow-up is `E_Given`, which settles every given config -- a doc
+  string as well as a file -- into `Parsed` or `Refused`.  The status
+  checks are three kinds, not one.  `Tabula_World` keeps warnings one
+  message each; its file side is `Load`, `Configs_Dir`, `Named`,
+  `Named_Exists`, added in F6 where they were first needed.
