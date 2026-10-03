@@ -1,4 +1,5 @@
 with Ada.Containers.Indefinite_Vectors;
+with Ada.Directories;
 with Ada.Strings.Fixed;
 
 package body Tabula_World is
@@ -32,6 +33,36 @@ package body Tabula_World is
       Tabula.Config.Parse
         (Content, Label, Record_Warning'Access, Root, Status, Error);
    end Parse;
+
+   procedure Load
+     (Path   : String;
+      Label  : String;
+      Root   : out Tabula.Config.Table;
+      Status : out Tabula.Config.Load_Status;
+      Error  : out Ada.Strings.Unbounded.Unbounded_String) is
+   begin
+      Reset;
+      Tabula.Config.Load
+        (Path, Label, Record_Warning'Access, Root, Status, Error);
+   end Load;
+
+   --  Where the named configs sit beside the features.
+   Configs_Subdir : constant String := "configs";
+
+   --  What a named config's file ends with.
+   Toml_Extension : constant String := "toml";
+
+   function Configs_Dir (Info : Fabula.Frames.Frame) return String
+   is (Ada.Directories.Compose
+         (Ada.Directories.Containing_Directory
+            (Fabula.Frames.Value (Info.File)),
+          Configs_Subdir));
+
+   function Named (Dir, Name : String) return String
+   is (Ada.Directories.Compose (Dir, Name, Toml_Extension));
+
+   function Named_Exists (Dir, Name : String) return Boolean
+   is (Ada.Directories.Exists (Named (Dir, Name)));
 
    function Silent return Boolean
    is (Warnings.Is_Empty);

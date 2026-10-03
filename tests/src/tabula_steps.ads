@@ -19,6 +19,11 @@ package Tabula_Steps is
    --  event of that region's state machine, in its own child package.
    type Step_Kind is
      (E_Parse_Doc,
+      E_Load_File,
+      E_Load_Missing,
+      E_Check_Loaded,
+      E_Check_Malformed,
+      E_Check_Missing,
       E_Take_Section,
       E_Check_Silent,
       E_Check_Warned,
@@ -36,7 +41,10 @@ package Tabula_Steps is
       E_Check_Absent,
       E_Walk_Strings,
       E_Walk_Sections,
-      E_Check_Items);
+      E_Check_Items,
+      --  Events no pattern names: a machine posts them to itself after
+      --  an action whose result the next row's guard reads.
+      E_Given);
 
    --  A scenario starts from a fresh world; the world holds no resource
    --  that would need stopping after it.
@@ -117,6 +125,12 @@ package Tabula_Steps is
    --!format off
    Step_Defs : constant Steps.Step_Table :=
      [Step ("a config labelled {string}:")                      >= E_Parse_Doc,
+      Step ("a config labelled {string} from the file {word}")  >= E_Load_File,
+      Step ("a config labelled {string} from a file that does not exist")
+                                                                >= E_Load_Missing,
+      Step ("the config loaded")                                >= E_Check_Loaded,
+      Step ("the config is malformed")                          >= E_Check_Malformed,
+      Step ("the config is missing")                            >= E_Check_Missing,
       Step ("the section {word}")                               >= E_Take_Section,
       Step ("nothing was warned")                               >= E_Check_Silent,
       Step ("{word} was complained about")                      >= E_Check_Warned,
