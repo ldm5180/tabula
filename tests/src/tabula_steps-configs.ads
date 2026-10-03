@@ -1,5 +1,6 @@
 --  Where a scenario's table comes from (every feature): a config given
---  as a doc string; and what that table complained about.  A region of the registry: Offer takes this
+--  as a doc string, or a section of it; and what that table complained
+--  about.  A region of the registry: Offer takes this
 --  region's steps, Reset starts a scenario, Phase names its state.
 
 package Tabula_Steps.Configs is
