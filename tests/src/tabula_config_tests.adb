@@ -4,32 +4,19 @@ with AUnit.Assertions; use AUnit.Assertions;
 
 with Tabula.Config; use Tabula.Config;
 
+with Tabula_World; use Tabula_World;
+
 package body Tabula_Config_Tests is
 
    use AUnit.Test_Cases.Registration;
-
-   --  A recording warner: the Warner type is a library-level access, so
-   --  the recorder must be library-level too (package state, reset per
-   --  routine).
-   Warnings : Unbounded_String;
-
-   procedure Record_Warning (Message : String) is
-   begin
-      Append (Warnings, Message & ";");
-   end Record_Warning;
 
    procedure Parse_Sample (Content : String; Root : out Table) is
       Status : Load_Status;
       Error  : Unbounded_String;
    begin
-      Warnings := Null_Unbounded_String;
-      Parse
-        (Content, "test config", Record_Warning'Access, Root, Status, Error);
+      Tabula_World.Parse (Content, "test config", Root, Status, Error);
       Assert (Status = Loaded, "the sample parses");
    end Parse_Sample;
-
-   function Warned (Fragment : String) return Boolean
-   is (Index (Warnings, Fragment) > 0);
 
    procedure Test_Policy (T : in out AUnit.Test_Cases.Test_Case'Class) is
       pragma Unreferenced (T);
@@ -52,7 +39,7 @@ package body Tabula_Config_Tests is
       Assert
         (Get (Root, "absent", Fallback => 9) = 9,
          "an absent key keeps the fallback");
-      Assert (Warnings = Null_Unbounded_String, "and does so silently");
+      Assert (Silent, "and does so silently");
 
       Assert
         (Get (Root, "wrong", Fallback => 9) = 9,
@@ -143,7 +130,7 @@ package body Tabula_Config_Tests is
         (Get (Section (Root, "top"), "dry_run", Fallback => True),
          "a non-table key yields the empty section");
       Assert
-        (Warnings = Null_Unbounded_String,
+        (Silent,
          "missing sections are silent -- a config states only changes");
    end Test_Sections;
 
@@ -236,7 +223,7 @@ package body Tabula_Config_Tests is
 
       Each_Section (Root, "absent", Note'Access);
       Assert (Count = 2, "an absent key walks nothing");
-      Assert (Warnings = Null_Unbounded_String, "and does so silently");
+      Assert (Silent, "and does so silently");
 
       Parse_Sample ("trades = 5", Root);
       Each_Section (Root, "trades", Note'Access);
@@ -259,7 +246,7 @@ package body Tabula_Config_Tests is
       Assert (Has (Root, "flag"), "a present key, even a falsy one");
       Assert (Has (Root, "wrong"), "a present key of any type/validity");
       Assert (not Has (Root, "absent"), "an absent key");
-      Assert (Warnings = Null_Unbounded_String, "Has never warns");
+      Assert (Silent, "Has never warns");
    end Test_Has;
 
    overriding

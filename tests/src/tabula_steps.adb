@@ -3,6 +3,7 @@ with Fabula.Numbers;
 
 with Tabula_Steps.Configs;
 with Tabula_Steps.Knobs;
+with Tabula_World;
 
 package body Tabula_Steps is
 
@@ -106,6 +107,7 @@ package body Tabula_Steps is
       for G of Regions loop
          G.Reset.all;
       end loop;
+      Tabula_World.Reset;
    end Run_Hook;
 
 end Tabula_Steps;

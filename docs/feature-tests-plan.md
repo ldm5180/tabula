@@ -381,8 +381,18 @@ read step for the same reason.
   makes -- the warning texts above all -- stays in the suite, and the
   features restate outcomes only.
 - **RED first:** the suite with its helpers deleted and `with
-  Tabula_World;` added fails to compile on `Record_Warning`; green when
+  Tabula_World;` added fails to compile (`file "tabula_world.ads" not
+  found`); green when
   `make test` passes both modes with no assertion changed.
+- **As built:** `Tabula_World` holds `Reset`, `Parse` (the recording
+  parse, which starts each table's warnings empty, as `Parse_Sample`
+  did), `Silent` and `Warned`; the warnings are a vector of messages,
+  not one `;`-joined text, since a message itself carries `;` ("...;
+  using default").  The suite's `Warnings = Null_Unbounded_String`
+  reads `Silent`, the same claim.  `Load_Named`, `Named_Exists` and
+  `Configs_Dir` arrive with F6, the first step that needs them.  The
+  features' parse moved onto `Tabula_World.Parse` and the
+  `Fresh_World` hook resets it.
 
 ### F3 -- `knobs.feature`: a knob reads with its type, or falls back
 
