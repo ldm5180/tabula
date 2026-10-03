@@ -471,6 +471,15 @@ read step for the same reason.
 
   The last scenario's `Then it is present` after a read: the machine
   allows `E_Ask_Has` from `Parsed` and from `Read`, both to `Read`.
+  **As built:** `Has` is a reading of its own kind (`Presence`), so
+  `it is present` / `it is absent` are rows of `Read` like every other
+  check; a read in `Read` re-posts itself into `Unread` (`A_Again`),
+  so each read's guarded rows are written once.  `nothing was warned`
+  and `{word} was complained about` are rows of the `config` region:
+  a complaint is the table's, made under its label, and a walk (F5)
+  warns as much as a read does.  A check of the wrong kind fails
+  saying so ("the reading is a COUNT, which ada cannot be"; "nothing
+  was asked for: the reading is a COUNT").
 - **RED first:** `make features` reports `a config labelled "test
   config":` `UNDEFINED`; the doc-string parse row turns it green, then
   each read and check in the order the scenario reads.  The values

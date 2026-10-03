@@ -27,4 +27,11 @@ package Tabula_World is
    --  Whether a recorded warning contains Fragment.
    function Warned (Fragment : String) return Boolean;
 
+   --  Whether a recorded warning was made by the table labelled Label
+   --  and names Key as a word of its own -- whatever else it says.
+   function Complained (Label, Key : String) return Boolean;
+
+   --  Every recorded warning, for a failure to show.
+   function Warnings_Text return String;
+
 end Tabula_World;
