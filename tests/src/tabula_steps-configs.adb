@@ -1,4 +1,5 @@
 with Tabula_Steps.Flows;
+with Tabula_World;
 
 package body Tabula_Steps.Configs is
 
@@ -26,10 +27,9 @@ package body Tabula_Steps.Configs is
    with Pre => Fabula.Args.Has_Doc (Ctx.A)
    is
    begin
-      Tabula.Config.Parse
+      Tabula_World.Parse
         (Content => Fabula.Args.Doc_String (Ctx.A),
          Label   => Fabula.Args.Text (Ctx.A, Label_Capture),
-         Warn    => null,
          Root    => Ctx.W.Root,
          Status  => Ctx.W.Status,
          Error   => Ctx.W.Error);
