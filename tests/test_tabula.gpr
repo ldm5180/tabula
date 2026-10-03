@@ -1,9 +1,11 @@
 with "aunit";
+with "fabula";
 with "../tabula.gpr";
 
---  The AUnit suite for tabula.  Mirrors sml-ada's test crate: the MODE
---  external selects -O3/-O0 with per-mode object and exec dirs, so the suite
---  can be built and run in both optimization modes without a clean between.
+--  The AUnit suite and the Gherkin feature runner for tabula.  Mirrors
+--  sml-ada's test crate: the MODE external selects -O3/-O0 with per-mode
+--  object and exec dirs, so both can be built and run in both optimization
+--  modes without a clean between.
 project Test_Tabula is
 
    type Mode_Type is ("release", "debug");
@@ -13,7 +15,8 @@ project Test_Tabula is
    for Object_Dir use "obj/" & Mode;
    for Exec_Dir use "bin/" & Mode;
    for Create_Missing_Dirs use "True";
-   for Main use ("test_runner.adb");
+   --  The feature runner is a generic instantiation, so its main is a spec.
+   for Main use ("test_runner.adb", "tabula_features.ads");
 
    package Compiler is
       Common := ("-g", "-gnata", "-gnatwa", "-gnatwe", "-gnat2022");

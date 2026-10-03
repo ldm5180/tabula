@@ -147,10 +147,9 @@ tests/
     tabula_features.ads        F1  the main: Fabula.Main instantiated
     tabula_steps.ads/.adb      F1  Step_Kind, Hook_Kind, the tables, the regions
     tabula_steps-flows.ads/.adb F1 the machine runner (nuntius's, verbatim)
-    tabula_steps-knobs.adb     F3  one machine per feature, one child each
-    tabula_steps-decimals.adb  F4
-    tabula_steps-sections.adb  F5
-    tabula_steps-files.adb     F6
+    tabula_steps-configs.ads/.adb F1 region "config": where the table comes from
+    tabula_steps-knobs.ads/.adb  F1 region "knobs": what is read from it
+    tabula_steps-walks.ads/.adb  F5 region "walks": the array walkers
     tabula_world.ads/.adb      F2  the warner, the parse, the configs dir
   test_tabula.gpr              F1  with "fabula"; a second main
 tools/
@@ -189,7 +188,21 @@ text, never through a `Long_Float` capture (the first Do-not).
 | `the items were {string}` | `E_Check_Items` | the walked items, comma-joined |
 | `it is present` / `it is absent` | `E_Check_Present` / `E_Check_Absent` | the kept `Has` |
 
-### 3.1 The feature as a machine
+### 3.1 The features as machines
+
+**As built (F1):** the four features share one vocabulary -- every
+one of them gives a config and reads knobs from it -- and a step is
+taken by exactly one region, so the regions split by what a step acts
+on, not by which file the scenario sits in.  `config`
+(`Tabula_Steps.Configs`): where the table comes from -- a doc string,
+a named file, a section of it -- `Unparsed` -> `Parsed` / `Refused`.
+`knobs` (`Tabula_Steps.Knobs`): what is read from it and the checks
+of the reading -- `Unread` -> `Read`; its read rows ask `config`
+whether a table is in hand (`Configs.Holds_Table`, a guard, refused
+with "no config was given to read from").  `walks` (F5): the two
+walkers and their items.  `decimals.feature` reads through `knobs`.
+The design below was the draft; its states and guards survive, its
+one-machine-per-feature split does not.
 
 Each feature's machine has real states.  `knobs.feature`: `Unparsed`
 (nothing to read from) -> `Parsed` (a table in hand) -> `Read` (a
@@ -312,6 +325,11 @@ read step for the same reason.
      (`Unparsed` -> `Parsed` -> `Read`, three steps) proves the
      wiring (section 5); F3 grows that region into the feature, and
      the smoke feature goes then.
+     **As built:** the smoke feature is `knobs.feature`'s first
+     scenario, "A count reads", which F3 grows -- nothing is added to
+     be removed.  Two regions from the first commit (`config`,
+     `knobs`; 3.1), and one hook, `Fresh_World`: the world holds no
+     socket or task, so there is nothing for a `Stop_World` to stop.
   2. Two `[[actions]]` after the four: `["alr", "exec", "--",
      "tests/bin/release/tabula_features", "tests/features"]` and its
      `debug` twin.
