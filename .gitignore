@@ -13,3 +13,6 @@
 
 # Local Claude Code settings, not shared.
 /.claude/
+
+# The living documentation's node dependencies (npm ci, from the lockfile).
+/tools/features-report/node_modules/
