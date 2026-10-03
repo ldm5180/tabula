@@ -634,6 +634,16 @@ read step for the same reason.
 - **RED first:** `from the file feed` is `UNDEFINED`; green on the
   status, and the mutation `from the file nothere` fails with `no
   config named nothere in tests/features/configs`.
+- **As built:** `config` gains `Given` (a config given, what came of
+  it not yet settled) and `Refused`; every way of giving one -- a doc
+  string too -- posts `E_Given`, whose `Loaded` guard settles `Parsed`
+  or `Refused`, so a malformed doc string is refused like a malformed
+  file.  A section is taken only in `Parsed`.  The world's file side is
+  `Load (Path, ...)`, `Configs_Dir (Info)`, `Named (Dir, Name)` and
+  `Named_Exists`; the missing case loads `configs/does-not-exist.toml`.
+  A wrong status fails `Value LOADED is not equal to MISSING`; the
+  unknown name fails `no config named nothere in <the feature's
+  directory>/configs`.
 
 ### F7 -- The living documentation
 

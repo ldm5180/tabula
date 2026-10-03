@@ -1,0 +1,6 @@
+# A small, real config: the knobs a feed would read.
+retries = 12
+bump = "0.05"
+
+[trading]
+dry_run = false

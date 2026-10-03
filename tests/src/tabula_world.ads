@@ -2,8 +2,10 @@ with Ada.Strings.Unbounded;
 
 with Tabula.Config;
 
---  What the AUnit suite and the features share: a recording warner and
---  a parse through it.  Tabula.Config.Warner is a library-level access
+with Fabula.Frames;
+
+--  What the AUnit suite and the features share: a recording warner, a
+--  parse and a load through it, and the named configs on disk.  Tabula.Config.Warner is a library-level access
 --  type, so the recorder and what it records are package state here,
 --  cleared by Reset and by every Parse.
 
@@ -20,6 +22,25 @@ package Tabula_World is
       Root    : out Tabula.Config.Table;
       Status  : out Tabula.Config.Load_Status;
       Error   : out Ada.Strings.Unbounded.Unbounded_String);
+
+   --  Load Path under Label, warning through the recorder, which starts
+   --  empty, as Parse does.
+   procedure Load
+     (Path   : String;
+      Label  : String;
+      Root   : out Tabula.Config.Table;
+      Status : out Tabula.Config.Load_Status;
+      Error  : out Ada.Strings.Unbounded.Unbounded_String);
+
+   --  The directory of named configs beside the feature file that
+   --  Info's step belongs to.
+   function Configs_Dir (Info : Fabula.Frames.Frame) return String;
+
+   --  The file the config Name is in Dir: Dir/Name.toml.
+   function Named (Dir, Name : String) return String;
+
+   --  Whether Dir holds the config Name.
+   function Named_Exists (Dir, Name : String) return Boolean;
 
    --  Whether no warning was recorded.
    function Silent return Boolean;
