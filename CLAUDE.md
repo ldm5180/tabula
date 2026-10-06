@@ -42,7 +42,7 @@ never crash it — no getter raises.
   `tabula_features.ads` (`Fabula.Main` over `Tabula_Steps`).  The steps
   are events of sml machines, one region per thing a step acts on --
   `Tabula_Steps.Configs` (where the table comes from), `.Knobs` (what
-  is read from it), `.Walks` (the array walkers) -- each a child with
+  is read from it), `.Walks` (the array and key walkers) -- each a child with
   its own transition table, over the `Tabula_Steps.Flows` runner; a
   step no region takes fails naming every region's state.
   `Tabula_World` is the recording warner, the parse and the load the

@@ -105,6 +105,13 @@ package Tabula.Config is
       Key     : String;
       Process : not null access procedure (Item : Table));
 
+   --  Walk the keys T holds, in the order the file first wrote each,
+   --  sub-tables and arrays of tables among them: how a caller finds a
+   --  key it did not know to ask for, a misspelled knob among them.  An
+   --  empty or non-table T walks nothing, silently.
+   procedure Each_Key
+     (T : Table; Process : not null access procedure (Key : String));
+
 private
 
    type Table is record

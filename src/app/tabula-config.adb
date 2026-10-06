@@ -1,3 +1,4 @@
+with Ada.Containers.Generic_Array_Sort;
 with Ada.Directories;
 
 with TOML.File_IO;
@@ -18,14 +19,15 @@ package body Tabula.Config is
       end if;
    end Complain;
 
+   --  Whether V is a table: present, and of the table kind.
+   function Is_Table (V : TOML.TOML_Value) return Boolean
+   is (not TOML.Is_Null (V) and then TOML.Kind (V) = TOML.TOML_Table);
+
    --  Key's value in T -- No_TOML_Value when T is empty (or not a
    --  table) or the key is absent.  Absence is the SILENT path.
    function Lookup (T : Table; Key : String) return TOML.TOML_Value is
    begin
-      if TOML.Is_Null (T.Value)
-        or else TOML.Kind (T.Value) /= TOML.TOML_Table
-        or else not TOML.Has (T.Value, Key)
-      then
+      if not Is_Table (T.Value) or else not TOML.Has (T.Value, Key) then
          return TOML.No_TOML_Value;
       end if;
       return TOML.Get (T.Value, Key);
@@ -88,7 +90,7 @@ package body Tabula.Config is
    function Section (Root : Table; Name : String) return Table is
       V : constant TOML.TOML_Value := Lookup (Root, Name);
    begin
-      if TOML.Is_Null (V) or else TOML.Kind (V) /= TOML.TOML_Table then
+      if not Is_Table (V) then
          return
            (Value => TOML.No_TOML_Value,
             Label => Root.Label,
@@ -254,5 +256,43 @@ package body Tabula.Config is
          end;
       end loop;
    end Each_Section;
+
+   --  Whether the file wrote L before R: where the parser first made
+   --  each, earlier line then earlier column; the key breaks a tie, so
+   --  the order never depends on the table's hashing.
+   function Written_Before (L, R : TOML.Table_Entry) return Boolean is
+      A : constant TOML.Source_Location := TOML.Location (L.Value);
+      B : constant TOML.Source_Location := TOML.Location (R.Value);
+   begin
+      if A.Line /= B.Line then
+         return A.Line < B.Line;
+      elsif A.Column /= B.Column then
+         return A.Column < B.Column;
+      end if;
+      return L.Key < R.Key;
+   end Written_Before;
+
+   procedure Sort_Entries is new
+     Ada.Containers.Generic_Array_Sort
+       (Index_Type   => Positive,
+        Element_Type => TOML.Table_Entry,
+        Array_Type   => TOML.Table_Entry_Array,
+        "<"          => Written_Before);
+
+   procedure Each_Key
+     (T : Table; Process : not null access procedure (Key : String)) is
+   begin
+      if not Is_Table (T.Value) then
+         return;
+      end if;
+      declare
+         Entries : TOML.Table_Entry_Array := TOML.Iterate_On_Table (T.Value);
+      begin
+         Sort_Entries (Entries);
+         for E of Entries loop
+            Process (To_String (E.Key));
+         end loop;
+      end;
+   end Each_Key;
 
 end Tabula.Config;
