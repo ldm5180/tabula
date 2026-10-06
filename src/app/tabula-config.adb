@@ -4,6 +4,7 @@ with Ada.Directories;
 with TOML.File_IO;
 
 with Tabula.Decimals;
+with Tabula.Toml_Text;
 
 package body Tabula.Config is
 
@@ -11,6 +12,7 @@ package body Tabula.Config is
    use type TOML.Any_Value_Kind;
    use type TOML.Float_Kind;
    use type TOML.Valid_Float;
+   use type TOML.Any_Millisecond;
 
    --  One complaint through the table's handler (a no-op when null).
    procedure Complain (T : Table; Suffix : String) is
@@ -280,6 +282,87 @@ package body Tabula.Config is
       end if;
       return Fallback;
    end Get_Scaled;
+
+   --  V as a date: a local date of a real day, or text Toml_Text reads
+   --  as one.
+   function Date_Of (V : TOML.TOML_Value) return Toml_Text.Date_Read is
+   begin
+      case TOML.Kind (V) is
+         when TOML.TOML_Local_Date =>
+            declare
+               D   : constant TOML.Any_Local_Date := TOML.As_Local_Date (V);
+               Day : constant Date :=
+                 (Positive (D.Year), Positive (D.Month), Positive (D.Day));
+            begin
+               return (Toml_Text.Is_Calendar_Date (Day), Day);
+            end;
+
+         when TOML.TOML_String     =>
+            return Toml_Text.Date_Of (TOML.As_String (V));
+
+         when others               =>
+            return (Ok => False, Value => <>);
+      end case;
+   end Date_Of;
+
+   function Get (T : Table; Key : String; Fallback : Date) return Date is
+      V : constant TOML.TOML_Value := Lookup (T, Key);
+   begin
+      if TOML.Is_Null (V) then
+         return Fallback;
+      elsif Date_Of (V).Ok then
+         return Date_Of (V).Value;
+      end if;
+      Complain (T, Key & " is not a date; using default");
+      return Fallback;
+   end Get;
+
+   --  Whether V is a local time with a fraction of a second.
+   function Is_Fine_Time (V : TOML.TOML_Value) return Boolean
+   is (TOML.Kind (V) = TOML.TOML_Local_Time
+       and then TOML.As_Local_Time (V).Millisecond /= 0);
+
+   --  V as a time to the second: a local time with no fraction, or text
+   --  Toml_Text reads as one.
+   function Time_Of (V : TOML.TOML_Value) return Toml_Text.Time_Read is
+   begin
+      case TOML.Kind (V) is
+         when TOML.TOML_Local_Time =>
+            declare
+               C : constant TOML.Any_Local_Time := TOML.As_Local_Time (V);
+            begin
+               return
+                 (Ok    => C.Millisecond = 0,
+                  Value =>
+                    (Natural (C.Hour),
+                     Natural (C.Minute),
+                     Natural (C.Second)));
+            end;
+
+         when TOML.TOML_String     =>
+            return Toml_Text.Time_Of (TOML.As_String (V));
+
+         when others               =>
+            return (Ok => False, Value => <>);
+      end case;
+   end Time_Of;
+
+   function Get
+     (T : Table; Key : String; Fallback : Time_Of_Day) return Time_Of_Day
+   is
+      V : constant TOML.TOML_Value := Lookup (T, Key);
+   begin
+      if TOML.Is_Null (V) then
+         return Fallback;
+      elsif Time_Of (V).Ok then
+         return Time_Of (V).Value;
+      elsif Is_Fine_Time (V) then
+         Complain (T, Key & " is not a time to the second; using default");
+      else
+         Complain (T, Key & " is not a time; using default");
+      end if;
+      return Fallback;
+   end Get;
 
    procedure Each_String
      (T       : Table;

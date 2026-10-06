@@ -99,6 +99,18 @@ package Tabula.Config is
      (T : Table; Key : String; Scale : Positive; Fallback : Long_Long_Integer)
       return Long_Long_Integer;
 
+   --  A date knob: a TOML local date (start = 2020-01-01) or the same
+   --  text quoted.  A day the calendar lacks (2021-02-29, which the
+   --  parser lets through) warns and falls back, as does any other
+   --  value, a date with a time among them.
+   function Get (T : Table; Key : String; Fallback : Date) return Date;
+
+   --  A time-of-day knob: a TOML local time (open = 09:30:00) or the
+   --  same text quoted.  A time finer than a second warns and falls
+   --  back rather than lose its fraction, as does any other value.
+   function Get
+     (T : Table; Key : String; Fallback : Time_Of_Day) return Time_Of_Day;
+
    --  Walk the strings of an array knob: an absent key does nothing, a
    --  non-array warns and does nothing, each non-string entry warns and
    --  is skipped.

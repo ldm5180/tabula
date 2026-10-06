@@ -34,8 +34,12 @@ package Tabula_Steps is
       E_Read_Required,
       E_Read_Real,
       E_Read_Scaled,
+      E_Read_Date,
+      E_Read_Time,
       E_Ask_Has,
       E_Check_Reading,
+      E_Check_Date,
+      E_Check_Time,
       E_Check_Text,
       E_Check_Default,
       E_Check_Present,
@@ -54,7 +58,8 @@ package Tabula_Steps is
 
    --  What a getter returned, by the getter's type, or what Has said;
    --  None before a read.
-   type Reading_Kind is (None, Bool, Count, Text, Real, Scaled, Presence);
+   type Reading_Kind is
+     (None, Bool, Count, Text, Real, Scaled, Day, Clock, Presence);
 
    type Reading (Kind : Reading_Kind := None) is record
       case Kind is
@@ -75,6 +80,12 @@ package Tabula_Steps is
 
          when Scaled =>
             Units : Long_Long_Integer := 0;
+
+         when Day =>
+            On : Tabula.Date;
+
+         when Clock =>
+            At_Time : Tabula.Time_Of_Day;
 
          when Presence =>
             Present : Boolean := False;
@@ -149,9 +160,15 @@ package Tabula_Steps is
       Step ("the real {word} is read with default {word}")      >= E_Read_Real,
       Step ("the number {word} is read at a scale of {int} with default {int}")
                                                                 >= E_Read_Scaled,
+      Step ("the date {word} is read with default {word}")      >= E_Read_Date,
+      Step ("the time {word} is read with default {word}")      >= E_Read_Time,
       Step ("{word} is asked for")                              >= E_Ask_Has,
       Step ("the reading is the default")                       >= E_Check_Default,
       Step ("the reading is the text {string}")                 >= E_Check_Text,
+      Step ("the reading is year {int}, month {int}, day {int}")
+                                                                >= E_Check_Date,
+      Step ("the reading is hour {int}, minute {int}, second {int}")
+                                                                >= E_Check_Time,
       Step ("the reading is {word}")                            >= E_Check_Reading,
       Step ("it is present")                                    >= E_Check_Present,
       Step ("it is absent")                                     >= E_Check_Absent,

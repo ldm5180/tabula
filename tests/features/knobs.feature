@@ -20,6 +20,12 @@ Feature: A knob reads with its type, or keeps its default
       tie = 0.125
       quoted_tie = "-0.125"
       huge = 9223372036854775807
+      start = 2020-01-01
+      quoted_start = "2024-02-29"
+      no_such_day = 2021-02-29
+      open = 09:30:00
+      quoted_open = "16:15:00"
+      precise = 09:30:00.5
       """
 
   Scenario: A boolean reads
@@ -89,5 +95,53 @@ Feature: A knob reads with its type, or keeps its default
 
   Scenario: An absent scaled knob keeps its default, silently
     When the number absent is read at a scale of 100 with default -5
+    Then the reading is the default
+    And nothing was warned
+
+  Scenario: A bare date reads as its year, month and day
+    When the date start is read with default 1999-12-31
+    Then the reading is year 2020, month 1, day 1
+    And nothing was warned
+
+  Scenario: A quoted date reads the same way
+    When the date quoted_start is read with default 1999-12-31
+    Then the reading is year 2024, month 2, day 29
+
+  Scenario Outline: The date <key> keeps its default, and is complained about
+    When the date <key> is read with default 1999-12-31
+    Then the reading is the default
+    And <key> was complained about
+
+    Examples:
+      | key         |
+      | no_such_day |
+      | wrong       |
+      | open        |
+
+  Scenario Outline: The time <key> reads as its hour, minute and second
+    When the time <key> is read with default 00:00:00
+    Then the reading is hour <hour>, minute <minute>, second 0
+    And nothing was warned
+
+    Examples:
+      | key         | hour | minute |
+      | open        | 9    | 30     |
+      | quoted_open | 16   | 15     |
+
+  Scenario Outline: The time <key> keeps its default, and is complained about
+    When the time <key> is read with default 12:00:00
+    Then the reading is the default
+    And <key> was complained about
+
+    Examples:
+      | key     |
+      | precise |
+      | start   |
+      | wrong   |
+
+  Scenario: An absent date or time keeps its default, silently
+    When the date absent is read with default 1999-12-31
+    Then the reading is the default
+    When the time absent is read with default 12:00:00
     Then the reading is the default
     And nothing was warned

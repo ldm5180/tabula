@@ -16,7 +16,9 @@ never crash it.
   `Section`, overloaded `Get` for Boolean / Natural (with a `Min` guard) /
   String (with `Require_Non_Empty`) / Long_Float, `Get_Scaled` for a
   number as a whole count of a scale's units (no floating point needed:
-  0.2621 at a scale of a million is 262100), `Each_String` for
+  0.2621 at a scale of a million is 262100), `Get` for a `Tabula.Date`
+  or a `Tabula.Time_Of_Day` (bare `2020-01-01` / `09:30:00` or quoted;
+  a day the calendar lacks is refused), `Each_String` for
   string arrays, `Each_Section` for arrays of tables, and `Each_Key` for
   the keys a table holds, in the file's order. Every table carries a label and a `Warner` callback, so
   complaints read like `feed config: retries is not a number in 1 ..

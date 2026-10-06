@@ -3,6 +3,7 @@ with Fabula.Check.Longs;
 with Fabula.Check.Reals;
 
 with Tabula.Decimals;
+with Tabula.Toml_Text;
 
 with Tabula_Steps.Configs;
 with Tabula_Steps.Flows;
@@ -22,12 +23,16 @@ package body Tabula_Steps.Knobs is
       Decimal_Default,
       Scale_Given,
       Scaled_Given,
+      Date_Default,
+      Time_Default,
       Bool_Said,
       Count_Kept,
       Text_Kept,
       Real_Said,
       Real_Kept,
       Scaled_Kept,
+      Date_Kept,
+      Time_Kept,
       Presence_Kept);
 
    type Action_Kind is
@@ -40,6 +45,8 @@ package body Tabula_Steps.Knobs is
       A_Read_Required,
       A_Read_Real,
       A_Read_Scaled,
+      A_Read_Date,
+      A_Read_Time,
       A_Ask_Has,
       A_Again,
       --  Refusing a step written wrong.
@@ -50,6 +57,8 @@ package body Tabula_Steps.Knobs is
       A_Refuse_Decimal_Default,
       A_Refuse_Scale,
       A_Refuse_Long_Default,
+      A_Refuse_Date_Default,
+      A_Refuse_Time_Default,
       A_Refuse_Reading,
       A_Refuse_Decimal,
       A_Refuse_Unasked,
@@ -59,6 +68,8 @@ package body Tabula_Steps.Knobs is
       A_Check_Word_Text,
       A_Check_Real,
       A_Check_Scaled,
+      A_Check_Date,
+      A_Check_Time,
       A_Check_Text,
       A_Check_Default,
       A_Check_Present,
@@ -76,6 +87,12 @@ package body Tabula_Steps.Knobs is
    Want_Capture           : constant := 1;
    Scale_Capture          : constant := 2;
    Scaled_Default_Capture : constant := 3;
+
+   --  Where a date's or a time's three parts sit among a check's
+   --  captures.
+   First_Part  : constant := 1;
+   Second_Part : constant := 2;
+   Third_Part  : constant := 3;
 
    function Key (Ctx : Step_Context) return String
    is (Fabula.Args.Word (Ctx.A, Key_Capture));
@@ -99,6 +116,18 @@ package body Tabula_Steps.Knobs is
          when Text     => '"' & To_String (R.Words) & '"',
          when Real     => Fabula.Check.Real_Image (R.Value),
          when Scaled   => Fabula.Check.Long_Image (R.Units),
+         when Day      =>
+           Fabula.Check.Integer_Image (R.On.Year)
+           & "-"
+           & Fabula.Check.Integer_Image (R.On.Month)
+           & "-"
+           & Fabula.Check.Integer_Image (R.On.Day),
+         when Clock    =>
+           Fabula.Check.Integer_Image (R.At_Time.Hour)
+           & ":"
+           & Fabula.Check.Integer_Image (R.At_Time.Minute)
+           & ":"
+           & Fabula.Check.Integer_Image (R.At_Time.Second),
          when Presence => (if R.Present then "present" else "absent"));
 
    --  A decimal as a feature writes it: the text the crate's own gate
@@ -119,6 +148,9 @@ package body Tabula_Steps.Knobs is
    function Scale_Read (Ctx : Step_Context) return Boolean
    is (Count_Read (Ctx, Scale_Capture)
        and then Count (Ctx, Scale_Capture) > 0);
+
+   function Default_Word (Ctx : Step_Context) return String
+   is (Fabula.Args.Word (Ctx.A, Default_Capture));
 
    function Long_Default_Read (Ctx : Step_Context) return Boolean
    is (Fabula.Args.Long (Ctx.A, Scaled_Default_Capture).Ok);
@@ -148,6 +180,12 @@ package body Tabula_Steps.Knobs is
            when Scaled_Given    =>
              Scale_Read (Ctx) and then Long_Default_Read (Ctx),
            when Scaled_Kept     => Kept (Ctx, Scaled),
+           when Date_Default    =>
+             Tabula.Toml_Text.Date_Of (Default_Word (Ctx)).Ok,
+           when Time_Default    =>
+             Tabula.Toml_Text.Time_Of (Default_Word (Ctx)).Ok,
+           when Date_Kept       => Kept (Ctx, Day),
+           when Time_Kept       => Kept (Ctx, Clock),
            when Real_Said       =>
              Kept (Ctx, Real) and then Is_Decimal (Want (Ctx)),
            when Real_Kept       => Kept (Ctx, Real),
@@ -223,6 +261,38 @@ package body Tabula_Steps.Knobs is
          (Scaled, Default));
    end Get_Scaled;
 
+   procedure Get_Date (Ctx : in out Step_Context)
+   with Pre => Tabula.Toml_Text.Date_Of (Default_Word (Ctx)).Ok
+   is
+      Default : constant Tabula.Date :=
+        Tabula.Toml_Text.Date_Of (Default_Word (Ctx)).Value;
+   begin
+      Keep
+        (Ctx,
+         (Day, Tabula.Config.Get (Ctx.W.Root, Key (Ctx), Default)),
+         (Day, Default));
+   end Get_Date;
+
+   procedure Get_Time (Ctx : in out Step_Context)
+   with Pre => Tabula.Toml_Text.Time_Of (Default_Word (Ctx)).Ok
+   is
+      Default : constant Tabula.Time_Of_Day :=
+        Tabula.Toml_Text.Time_Of (Default_Word (Ctx)).Value;
+   begin
+      Keep
+        (Ctx,
+         (Clock, Tabula.Config.Get (Ctx.W.Root, Key (Ctx), Default)),
+         (Clock, Default));
+   end Get_Time;
+
+   --  Each of a reading's three parts against the step's three captures.
+   procedure Expect_Parts (Ctx : in out Step_Context; A, B, C : Natural) is
+   begin
+      Fabula.Check.Ints.Equal (Ctx.R, A, Fabula.Args.Int (Ctx.A, First_Part));
+      Fabula.Check.Ints.Equal (Ctx.R, B, Fabula.Args.Int (Ctx.A, Second_Part));
+      Fabula.Check.Ints.Equal (Ctx.R, C, Fabula.Args.Int (Ctx.A, Third_Part));
+   end Expect_Parts;
+
    procedure Ask (Ctx : in out Step_Context) is
    begin
       Keep
@@ -255,6 +325,12 @@ package body Tabula_Steps.Knobs is
 
          when A_Read_Scaled    =>
             Get_Scaled (Ctx);
+
+         when A_Read_Date      =>
+            Get_Date (Ctx);
+
+         when A_Read_Time      =>
+            Get_Time (Ctx);
 
          when A_Ask_Has        =>
             Ask (Ctx);
@@ -295,6 +371,14 @@ package body Tabula_Steps.Knobs is
               (Ctx.R,
                Fabula.Args.Long (Ctx.A, Scaled_Default_Capture).Error,
                "the default");
+
+         when A_Refuse_Date_Default    =>
+            Fabula.Check.Fail_Step
+              (Ctx.R, Default_Word (Ctx) & " is not a date, YYYY-MM-DD");
+
+         when A_Refuse_Time_Default    =>
+            Fabula.Check.Fail_Step
+              (Ctx.R, Default_Word (Ctx) & " is not a time, HH:MM:SS");
 
          when A_Refuse_Decimal         =>
             Fabula.Check.Fail_Step
@@ -339,6 +423,17 @@ package body Tabula_Steps.Knobs is
          when A_Check_Scaled                   =>
             Fabula.Check.Longs.Equal
               (Ctx.R, Ctx.W.Got.Units, Fabula.Args.Long (Ctx.A, Want_Capture));
+
+         when A_Check_Date                     =>
+            Expect_Parts
+              (Ctx, Ctx.W.Got.On.Year, Ctx.W.Got.On.Month, Ctx.W.Got.On.Day);
+
+         when A_Check_Time                     =>
+            Expect_Parts
+              (Ctx,
+               Ctx.W.Got.At_Time.Hour,
+               Ctx.W.Got.At_Time.Minute,
+               Ctx.W.Got.At_Time.Second);
 
          when A_Check_Word_Text | A_Check_Text =>
             Fabula.Check.Text_Equal
@@ -403,6 +498,10 @@ package body Tabula_Steps.Knobs is
    Read_Required  : constant Ev := (Kind => E_Read_Required);
    Read_Real      : constant Ev := (Kind => E_Read_Real);
    Read_Scaled    : constant Ev := (Kind => E_Read_Scaled);
+   Read_Date      : constant Ev := (Kind => E_Read_Date);
+   Read_Time      : constant Ev := (Kind => E_Read_Time);
+   Check_Date     : constant Ev := (Kind => E_Check_Date);
+   Check_Time     : constant Ev := (Kind => E_Check_Time);
    Ask_Has        : constant Ev := (Kind => E_Ask_Has);
    Check_Reading  : constant Ev := (Kind => E_Check_Reading);
    Check_Text     : constant Ev := (Kind => E_Check_Text);
@@ -433,6 +532,12 @@ package body Tabula_Steps.Knobs is
       Unread + Read_Scaled    (Scaled_Given)  / A_Read_Scaled         >= Read,
       Unread + Read_Scaled    (Scale_Given)   / A_Refuse_Long_Default >= Unread,
       Unread + Read_Scaled                    / A_Refuse_Scale        >= Unread,
+      Unread + Read_Date      (No_Table)      / A_Refuse_No_Table     >= Unread,
+      Unread + Read_Date      (Date_Default)  / A_Read_Date           >= Read,
+      Unread + Read_Date                      / A_Refuse_Date_Default >= Unread,
+      Unread + Read_Time      (No_Table)      / A_Refuse_No_Table     >= Unread,
+      Unread + Read_Time      (Time_Default)  / A_Read_Time           >= Read,
+      Unread + Read_Time                      / A_Refuse_Time_Default >= Unread,
       Unread + Ask_Has        (No_Table)      / A_Refuse_No_Table     >= Unread,
       Unread + Ask_Has                        / A_Ask_Has             >= Read,
 
@@ -443,6 +548,8 @@ package body Tabula_Steps.Knobs is
       Read   + Read_Required                  / A_Again               >= Unread,
       Read   + Read_Real                      / A_Again               >= Unread,
       Read   + Read_Scaled                    / A_Again               >= Unread,
+      Read   + Read_Date                      / A_Again               >= Unread,
+      Read   + Read_Time                      / A_Again               >= Unread,
       Read   + Ask_Has                        / A_Again               >= Unread,
 
       Read   + Check_Reading  (Bool_Said)     / A_Check_Bool          >= Read,
@@ -452,6 +559,10 @@ package body Tabula_Steps.Knobs is
       Read   + Check_Reading  (Real_Kept)     / A_Refuse_Decimal      >= Read,
       Read   + Check_Reading  (Scaled_Kept)   / A_Check_Scaled        >= Read,
       Read   + Check_Reading                  / A_Refuse_Reading      >= Read,
+      Read   + Check_Date     (Date_Kept)     / A_Check_Date          >= Read,
+      Read   + Check_Date                     / A_Refuse_Reading      >= Read,
+      Read   + Check_Time     (Time_Kept)     / A_Check_Time          >= Read,
+      Read   + Check_Time                     / A_Refuse_Reading      >= Read,
       Read   + Check_Text     (Text_Kept)     / A_Check_Text          >= Read,
       Read   + Check_Text                     / A_Refuse_Reading      >= Read,
       Read   + Check_Default                  / A_Check_Default       >= Read,
