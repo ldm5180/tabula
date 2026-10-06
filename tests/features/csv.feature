@@ -1,4 +1,4 @@
-Feature: A CSV file is read by its rows
+Feature: A CSV file is read by its rows, and written whole
 
   A CSV file's first record is its header, and every later record is a
   row whose fields are read by the header's names or by position.  The
@@ -7,8 +7,10 @@ Feature: A CSV file is read by its rows
   quote inside one for a quote, and LF or CRLF between records.  A
   record whose field count differs from the header's, and a quote never
   closed, are refused with the line the record began on; the rows
-  before it were already handed over.  In the tables below, \n in a
-  cell is a line break.
+  before it were already handed over.  A file is written a row at a
+  time, a field quoted when it holds a comma, a quote or a line break,
+  and lands whole when it is closed; what is written reads back the
+  same.  In the tables below, \n in a cell is a line break.
 
   Scenario: Fields are read by their header's names
     Given a CSV file:
@@ -83,3 +85,16 @@ Feature: A CSV file is read by its rows
     Given a CSV file that does not exist
     When its rows are read
     Then the CSV file is missing
+
+  Scenario: A file written is read back the same
+    When a CSV file is written with the rows:
+      | name  | note         |
+      | plain | x            |
+      | comma | a, b         |
+      | quote | say "hi" now |
+      | break | one\ntwo     |
+      | empty |              |
+    Then the CSV file was written
+    When its rows are read
+    Then the rows read
+    And the rows read back are the rows written

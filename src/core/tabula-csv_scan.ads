@@ -63,6 +63,18 @@ is
    procedure Next (S : in out Scanner)
    with Pre => Ready (S), Post => not Ready (S);
 
+   --  The longest field Field_Text takes: each character at most
+   --  doubled, and two quotes, still fit a String.
+   Max_Field_Text : constant := (Natural'Last - 2) / 2;
+
+   --  Field as a record writes it: as it is, unless it holds a comma, a
+   --  quote, a carriage return or a line feed; then in quotes, each of
+   --  its quotes doubled.  What it gives scans back as Field.
+   function Field_Text (Field : String) return String
+   with
+     Pre  => Field'Length <= Max_Field_Text,
+     Post => Field_Text'Result'Length in Field'Length .. 2 * Field'Length + 2;
+
 private
 
    --  Record_End: no part of a record seen.  Field_Start: after a

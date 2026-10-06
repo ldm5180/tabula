@@ -176,4 +176,73 @@ package body Tabula.Csv is
          Result := (Malformed, 0);
    end Each_Row;
 
+   ---------------------------------------------------------------------
+   --  Writing.
+   ---------------------------------------------------------------------
+
+   --  Whether Fields make a record Each_Row can read back: within the
+   --  scanner's bounds on fields and on their text.
+   function Readable (Fields : Text_Lists.Vector) return Boolean is
+      Total : Natural := 0;
+   begin
+      if Natural (Fields.Length) > Csv_Scan.Max_Fields then
+         return False;
+      end if;
+      for F of Fields loop
+         if F'Length > Csv_Scan.Max_Record_Length - Total then
+            return False;
+         end if;
+         Total := Total + F'Length;
+      end loop;
+      return True;
+   end Readable;
+
+   procedure Put_Record (W : in out Writer; Fields : Text_Lists.Vector) is
+   begin
+      for I in Fields.First_Index .. Fields.Last_Index loop
+         if I > Fields.First_Index then
+            Staged_Files.Put (W.File, ",");
+         end if;
+         Staged_Files.Put (W.File, Csv_Scan.Field_Text (Fields (I)));
+      end loop;
+      Staged_Files.Put (W.File, [ASCII.LF]);
+   end Put_Record;
+
+   procedure Put (W : in out Writer; Fields : Text_Lists.Vector) is
+   begin
+      if W.Failed then
+         return;
+      elsif Natural (Fields.Length) /= W.Columns or else not Readable (Fields)
+      then
+         W.Failed := True;
+         return;
+      end if;
+      Put_Record (W, Fields);
+   end Put;
+
+   procedure Open
+     (W : in out Writer; Path : String; Header : Text_Lists.Vector)
+   is
+      Opened : Boolean;
+   begin
+      Staged_Files.Open (W.File, Path, Opened);
+      W.Columns := Natural (Header.Length);
+      W.Failed := not Opened or else W.Columns = 0;
+      Put (W, Header);
+   end Open;
+
+   function Failed (W : Writer) return Boolean
+   is (W.Failed);
+
+   procedure Close (W : in out Writer; Ok : out Boolean) is
+   begin
+      if W.Failed then
+         Staged_Files.Abandon (W.File);
+         Ok := False;
+      else
+         Staged_Files.Commit (W.File, Ok);
+      end if;
+      W.Failed := True;
+   end Close;
+
 end Tabula.Csv;

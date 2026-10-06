@@ -1,7 +1,9 @@
 # Tables in and out plan
 
-**Status (2026-10-06):** planned, nothing built.  Three iterations
-done (see Revision notes).
+**Status (2026-10-06):** built.  B1-B7 are on `tables-in-and-out`, one
+commit per cycle; every gate passes (suite, features, format,
+validation, proof).  What differs from the plan below is in the last
+revision note.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -225,3 +227,59 @@ procedure Each_Row
   draft had `Get_Scaled` always going through the float; the quoted
   decimal form can be scaled from its digits, which keeps exact
   decimals exact.
+- **Implementation (as built, against the plan above):**
+  - *B1.*  ada_toml's `Keys` and `Iterate_On_Table` come back sorted,
+    not in file order; `Each_Key` orders the entries by the source
+    location the parser recorded for each value (the key breaks a
+    tie), which is the file's order.
+  - *B2.*  The digit scaling is pure arithmetic, so it went into the
+    proven core beside the shape check, as `Tabula.Decimals.Scaled`
+    (an integer overload too), rather than into `Config`.  The range
+    is symmetric, `-Long_Long_Integer'Last .. Long_Long_Integer'Last`,
+    so `Long_Long_Integer'First` is out of range.  The fraction is
+    taken from its last digit with a carry below the scale; the first
+    digit's step alone decides the rounding, so every digit counts.
+  - *B3.*  `Date` and `Time_Of_Day` are declared in the root package
+    `Tabula`, not in `Config`, so the writer (B5) and the text
+    functions (B4) share them; `Tabula.Toml_Text` was created here for
+    the quoted forms' readers and B4 added the writers to it.  ada_toml
+    accepts a day its month lacks (2021-02-29), so the getter checks
+    the calendar; a local time with a fraction of a second warns and
+    falls back rather than lose the fraction; a second may be 60, as
+    TOML allows.
+  - *B4.*  `Is_Number_Text` is stricter than "the shape of a decimal",
+    so that what is written reads back as written: no leading zero
+    (TOML forbids one), an integer within 64 bits (a larger one does
+    not parse), and a decimal with a point of at most 15 significant
+    digits (what a double holds exactly).
+  - *B5.*  Two app units the shape table did not list:
+    `Tabula.Staged_Files` (write beside the path, rename into place,
+    abandon on any failure or when let go of; the CSV writer uses it
+    too) and `Tabula.Text_Lists` (the list of texts the writers take,
+    so a caller writes `["A", "B"]`).  The refusals are a number text
+    `Is_Number_Text` rejects, a key twice in one table, a header name
+    already at the root (an array of tables may continue), a control
+    in a comment, a day the calendar lacks, and text too long to
+    escape; `Refusal` names the first, beginning with its key.  A
+    table name is one key, quoted when it must be, never a dotted
+    path.
+  - *B6.*  The scanner makes `sml` a dependency of the library: it is
+    declared in `alire.toml` with no pin of its own and resolves to
+    the commit fabula pins (`3ccd0e4b`); nothing was re-pinned.  The
+    record is bounded (64 KiB of text, 1024 fields), and a record past
+    a bound is refused (`Too_Long`, `Too_Many_Fields`), never cut.
+    Two states beyond the plan's six: `Line_Feed_Due` (after a CR; a
+    CR no LF follows is refused) and `Finished`.  The CR and LF events
+    take the `ASCII` names.  A file that exists but cannot be read is
+    `Malformed` at line 0.  A row also offers `Column`, `Has_Column`
+    and `Line`; a repeated header name reads as its first column.
+  - *B7.*  The writer refuses a header of no columns and any record the
+    reader could not read back (past the scanner's bounds), and offers
+    `Failed`.  `Field_Text`, the quoting, sits in `Tabula.Csv_Scan`
+    beside the scanner, so the dialect's special characters are named
+    once, and is proved.
+  - *Found on the way.*  `make format` reads `git ls-files`, so a new
+    file must be staged before it is checked.  gnatformat's lexer takes
+    a container aggregate opening on a short hex-digit string
+    (`["a"]`) for a bad brackets encoding.  fabula ends a doc string at
+    a quote fence anywhere on a line, so a feature's CSV avoids `"""`.

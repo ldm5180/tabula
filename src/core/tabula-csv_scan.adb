@@ -178,6 +178,34 @@ is
              when others   => E_Other),
         Char => C));
 
+   --  Whether Field holds a character the scanner reads as more than
+   --  text: a comma, a quote, a carriage return or a line feed.
+   function Needs_Quotes (Field : String) return Boolean
+   is (for some C of Field => Event_Of (C).Kind /= E_Other);
+
+   --  The buffer starts as all quotes, so every slot skipped holds one:
+   --  the opening quote, each doubling, and the closing quote.
+   function Field_Text (Field : String) return String is
+      Quote  : constant Character := '"';
+      Buffer : String (1 .. 2 * Field'Length + 2) := [others => Quote];
+      Last   : Positive := 1;
+   begin
+      if not Needs_Quotes (Field) then
+         return Field;
+      end if;
+      for I in Field'Range loop
+         pragma
+           Loop_Invariant
+             (Last in I - Field'First + 1 .. 2 * (I - Field'First) + 1);
+         Last := Last + 1;
+         Buffer (Last) := Field (I);
+         if Field (I) = Quote then
+            Last := Last + 1;
+         end if;
+      end loop;
+      return Buffer (1 .. Last + 1);
+   end Field_Text;
+
    --  Evt through the table.  Only Malformed and Finished leave an
    --  event untaken, and they have no rows because they take nothing
    --  more, so whether a row took it says nothing the state does not.

@@ -78,6 +78,9 @@ package Tabula_Steps is
       E_Check_Ragged,
       E_Check_Malformed_At,
       E_Check_Csv_Missing,
+      E_Write_Csv,
+      E_Check_Written,
+      E_Check_Read_Back,
       --  Events no pattern names: a machine posts them to itself after
       --  an action whose result the next row's guard reads.
       E_Given);
@@ -135,7 +138,8 @@ package Tabula_Steps is
    --  the read was given, what a walk visited, the document being
    --  written and whether it saved, and a CSV file's path and what
    --  reading it came to: the header's names, and each row's fields by
-   --  position and, in the header's order, by name.
+   --  position and, in the header's order, by name; and the records a
+   --  scenario wrote to one, header first, and whether it landed.
    type World is record
       Root    : Tabula.Config.Table;
       Label   : Unbounded_String;
@@ -151,6 +155,8 @@ package Tabula_Steps is
       Columns : Tabula.Text_Lists.Vector;
       Fields  : Row_Lists.Vector;
       Named   : Row_Lists.Vector;
+      Wrote   : Row_Lists.Vector;
+      Written : Boolean := False;
    end record;
 
    --  One step as a machine sees it: the scenario, the step's arguments,
@@ -249,7 +255,10 @@ package Tabula_Steps is
       Step ("the fields of row {int} are:")                     >= E_Check_Row_Fields,
       Step ("the file is refused as ragged at line {int}")      >= E_Check_Ragged,
       Step ("the file is refused as malformed at line {int}")   >= E_Check_Malformed_At,
-      Step ("the CSV file is missing")                          >= E_Check_Csv_Missing];
+      Step ("the CSV file is missing")                          >= E_Check_Csv_Missing,
+      Step ("a CSV file is written with the rows:")             >= E_Write_Csv,
+      Step ("the CSV file was written")                         >= E_Check_Written,
+      Step ("the rows read back are the rows written")          >= E_Check_Read_Back];
    --!format on
 
    Hook_Defs : constant Steps.Hook_Table := [Before >= Fresh_World];

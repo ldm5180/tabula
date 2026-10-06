@@ -149,6 +149,28 @@ package body Tabula_Csv_Scan_Tests is
       Assert (Scan (Long).Fault = None, "as long as a record may be");
    end Test_Bounds;
 
+   --  A field is written bare unless it holds what the scanner would
+   --  read as a separator or a quote; then quoted, its quotes doubled.
+   procedure Test_Field_Text (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+   begin
+      Assert (Field_Text ("plain") = "plain", "a plain field is bare");
+      Assert (Field_Text ("") = "", "so is an empty one");
+      Assert (Field_Text (" a ") = " a ", "blanks need no quotes");
+      Assert (Field_Text ("a,b") = """a,b""", "a comma is quoted");
+      Assert
+        (Field_Text ("say ""hi""") = """say """"hi""""""",
+         "a quote is quoted and doubled");
+      Assert
+        (Field_Text ("a" & LF & "b") = """a" & LF & "b""",
+         "a line feed is quoted");
+      Assert (Field_Text (CR & "") = """" & CR & """", "a carriage return");
+      Assert
+        (Records (Field_Text ("x"",y" & LF) & "," & Field_Text ("z"))
+         = "[x"",y" & LF & "][z]|",
+         "and what is written scans back as it was");
+   end Test_Field_Text;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -158,6 +180,7 @@ package body Tabula_Csv_Scan_Tests is
       Register_Routine (T, Test_Refusals'Access, "what a text is refused for");
       Register_Routine (T, Test_Lines'Access, "the line a refusal names");
       Register_Routine (T, Test_Bounds'Access, "a record's bounds");
+      Register_Routine (T, Test_Field_Text'Access, "a field as written");
    end Register_Tests;
 
    overriding

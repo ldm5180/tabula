@@ -62,11 +62,11 @@ package body Tabula_Steps is
 
    --!format off
    Regions : constant array (Positive range <>) of Region :=
-     [(Config_Name'Access, Configs.Offer'Access, Configs.Reset'Access, Configs.Phase'Access),
-      (Knobs_Name'Access,  Knobs.Offer'Access,   Knobs.Reset'Access,   Knobs.Phase'Access),
-      (Walks_Name'Access,  Walks.Offer'Access,   Walks.Reset'Access,   Walks.Phase'Access),
-      (Emits_Name'Access,  Emits.Offer'Access,   Emits.Reset'Access,   Emits.Phase'Access),
-      (Csv_Name'Access,    Csv_Files.Offer'Access, Csv_Files.Reset'Access, Csv_Files.Phase'Access)];
+     [(Config_Name'Access,  Configs.Offer'Access,    Configs.Reset'Access,    Configs.Phase'Access),
+      (Knobs_Name'Access,   Knobs.Offer'Access,      Knobs.Reset'Access,      Knobs.Phase'Access),
+      (Walks_Name'Access,   Walks.Offer'Access,      Walks.Reset'Access,      Walks.Phase'Access),
+      (Emits_Name'Access,   Emits.Offer'Access,      Emits.Reset'Access,      Emits.Phase'Access),
+      (Csv_Name'Access,     Csv_Files.Offer'Access,  Csv_Files.Reset'Access,  Csv_Files.Phase'Access)];
    --!format on
 
    --  Every region's state, for the step no region would take.

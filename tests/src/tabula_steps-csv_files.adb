@@ -7,8 +7,9 @@ with Tabula_World;
 package body Tabula_Steps.Csv_Files is
 
    use type Tabula.Csv.Status_Kind;
+   use type Tabula.Text_Lists.Vector;
 
-   --  No_File until a file is given; Given with a path in hand; Read
+   --  No_File until a file is given or written; Given with a path in hand; Read
    --  once its rows were read.
    type State is (No_File, Given, Read);
 
@@ -16,9 +17,10 @@ package body Tabula_Steps.Csv_Files is
 
    type Action_Kind is
      (A_Nothing,
-      --  Giving and reading a file.
+      --  Giving, writing and reading a file.
       A_Give,
       A_Give_Missing,
+      A_Write,
       A_Read,
       --  Refusing a step written wrong.
       A_Refuse_Doc,
@@ -31,15 +33,18 @@ package body Tabula_Steps.Csv_Files is
       A_Check_Fields,
       A_Check_Ragged,
       A_Check_Malformed,
-      A_Check_Missing);
+      A_Check_Missing,
+      A_Check_Written,
+      A_Check_Read_Back);
 
    subtype Give_Action is Action_Kind range A_Give .. A_Read;
    subtype Refuse_Action is Action_Kind range A_Refuse_Doc .. A_Refuse_Row;
-   subtype Check_Action is Action_Kind range A_Check_Read .. A_Check_Missing;
+   subtype Check_Action is Action_Kind range A_Check_Read .. A_Check_Read_Back;
 
    --  The files a scenario gives, as scratch files.
-   Given_Name  : constant String := "feature.csv";
-   Absent_Name : constant String := "absent.csv";
+   Given_Name   : constant String := "feature.csv";
+   Absent_Name  : constant String := "absent.csv";
+   Written_Name : constant String := "written-feature.csv";
 
    --  Where a step's count or line sits among its captures, and where a
    --  table's column names are.
@@ -113,25 +118,6 @@ package body Tabula_Steps.Csv_Files is
       Ctx.W.Named := Named;
    end Gather_Rows;
 
-   procedure Execute_Give (A : Give_Action; Ctx : in out Step_Context) is
-   begin
-      case A is
-         when A_Give         =>
-            Ctx.W.Csv :=
-              To_Unbounded_String (Tabula_World.Scratch (Given_Name));
-            Tabula_World.Write_File
-              (To_String (Ctx.W.Csv), Fabula.Args.Doc_String (Ctx.A));
-
-         when A_Give_Missing =>
-            Tabula_World.Clear_Scratch (Absent_Name);
-            Ctx.W.Csv :=
-              To_Unbounded_String (Tabula_World.Scratch (Absent_Name));
-
-         when A_Read         =>
-            Gather_Rows (Ctx);
-      end case;
-   end Execute_Give;
-
    procedure Execute_Refuse (A : Refuse_Action; Ctx : in out Step_Context) is
    begin
       case A is
@@ -167,6 +153,34 @@ package body Tabula_Steps.Csv_Files is
       end loop;
       return To_String (Text);
    end Unmarked;
+
+   --  The step's table's row R, each cell unmarked.
+   function Table_Row
+     (Ctx : Step_Context; R : Positive) return Tabula.Text_Lists.Vector
+   is
+      Cells : Tabula.Text_Lists.Vector;
+   begin
+      for C in 1 .. Fabula.Args.Col_Count (Ctx.A) loop
+         Cells.Append (Unmarked (Fabula.Args.Cell (Ctx.A, R, C)));
+      end loop;
+      return Cells;
+   end Table_Row;
+
+   --  The step's table written as a file, its first row the header.
+   procedure Write_Rows (Ctx : in out Step_Context) is
+      W : Tabula.Csv.Writer;
+   begin
+      Ctx.W.Csv := To_Unbounded_String (Tabula_World.Scratch (Written_Name));
+      Ctx.W.Wrote.Clear;
+      for R in 1 .. Fabula.Args.Row_Count (Ctx.A) loop
+         Ctx.W.Wrote.Append (Table_Row (Ctx, R));
+      end loop;
+      Tabula.Csv.Open (W, To_String (Ctx.W.Csv), Ctx.W.Wrote.First_Element);
+      for R in Ctx.W.Wrote.First_Index + 1 .. Ctx.W.Wrote.Last_Index loop
+         Tabula.Csv.Put (W, Ctx.W.Wrote (R));
+      end loop;
+      Tabula.Csv.Close (W, Ctx.W.Written);
+   end Write_Rows;
 
    --  The table's cell for the read row R, column C.
    function Want (Ctx : Step_Context; R, C : Positive) return String
@@ -222,6 +236,38 @@ package body Tabula_Steps.Csv_Files is
         (Ctx.R, Ctx.W.Outcome.Line, Number (Ctx), "line");
    end Expect_Refused;
 
+   procedure Execute_Give (A : Give_Action; Ctx : in out Step_Context) is
+   begin
+      case A is
+         when A_Give         =>
+            Ctx.W.Csv :=
+              To_Unbounded_String (Tabula_World.Scratch (Given_Name));
+            Tabula_World.Write_File
+              (To_String (Ctx.W.Csv), Fabula.Args.Doc_String (Ctx.A));
+
+         when A_Give_Missing =>
+            Tabula_World.Clear_Scratch (Absent_Name);
+            Ctx.W.Csv :=
+              To_Unbounded_String (Tabula_World.Scratch (Absent_Name));
+
+         when A_Write        =>
+            Write_Rows (Ctx);
+
+         when A_Read         =>
+            Gather_Rows (Ctx);
+      end case;
+   end Execute_Give;
+
+   --  Whether the rows read are the rows written, header and all.
+   function Read_Back (Ctx : Step_Context) return Boolean
+   is (not Ctx.W.Wrote.Is_Empty
+       and then Ctx.W.Columns = Ctx.W.Wrote.First_Element
+       and then Natural (Ctx.W.Fields.Length)
+                = Natural (Ctx.W.Wrote.Length) - 1
+       and then (for all R in
+                   Ctx.W.Fields.First_Index .. Ctx.W.Fields.Last_Index =>
+                   Ctx.W.Fields (R) = Ctx.W.Wrote (R + 1)));
+
    procedure Execute_Check (A : Check_Action; Ctx : in out Step_Context) is
    begin
       case A is
@@ -249,6 +295,20 @@ package body Tabula_Steps.Csv_Files is
               (Ctx.R,
                Ctx.W.Outcome.Status = Tabula.Csv.Missing,
                "the read came to " & Ctx.W.Outcome.Status'Image);
+
+         when A_Check_Written   =>
+            Fabula.Check.Is_True
+              (Ctx.R, Ctx.W.Written, "the writer did not land the file");
+
+         when A_Check_Read_Back =>
+            Fabula.Check.Is_True
+              (Ctx.R,
+               Read_Back (Ctx),
+               "read back"
+               & Natural'Image (Rows_Read (Ctx))
+               & " rows, not as written:"
+               & ASCII.LF
+               & Tabula_World.Contents (To_String (Ctx.W.Csv)));
       end case;
    end Execute_Check;
 
@@ -299,12 +359,19 @@ package body Tabula_Steps.Csv_Files is
    Check_Ragged       : constant Ev := (Kind => E_Check_Ragged);
    Check_Malformed_At : constant Ev := (Kind => E_Check_Malformed_At);
    Check_Csv_Missing  : constant Ev := (Kind => E_Check_Csv_Missing);
+   Write_Csv          : constant Ev := (Kind => E_Write_Csv);
+   Check_Written      : constant Ev := (Kind => E_Check_Written);
+   Check_Read_Back    : constant Ev := (Kind => E_Check_Read_Back);
 
    --!format off
    Table : constant Transition_Table :=
      [No_File + Give_Csv         (Doc_Given)   / A_Give            >= Given,
       No_File + Give_Csv                       / A_Refuse_Doc      >= No_File,
       No_File + Give_Missing_Csv               / A_Give_Missing    >= Given,
+      No_File + Write_Csv        (Table_Given) / A_Write           >= Given,
+      No_File + Write_Csv                      / A_Refuse_Table    >= No_File,
+
+      Given   + Check_Written                  / A_Check_Written   >= Given,
 
       Given   + Read_Rows                      / A_Read            >= Read,
 
@@ -317,7 +384,8 @@ package body Tabula_Steps.Csv_Files is
       Read    + Check_Row_Fields               / A_Refuse_Table    >= Read,
       Read    + Check_Ragged                   / A_Check_Ragged    >= Read,
       Read    + Check_Malformed_At             / A_Check_Malformed >= Read,
-      Read    + Check_Csv_Missing              / A_Check_Missing   >= Read];
+      Read    + Check_Csv_Missing              / A_Check_Missing   >= Read,
+      Read    + Check_Read_Back                / A_Check_Read_Back >= Read];
    --!format on
 
    Current : State := No_File;

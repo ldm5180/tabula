@@ -1,15 +1,17 @@
+with Tabula.Text_Lists;
+
 private with Ada.Containers.Indefinite_Hashed_Maps;
 private with Ada.Strings.Hash;
 private with Tabula.Csv_Scan;
-private with Tabula.Text_Lists;
+private with Tabula.Staged_Files;
 
---  A CSV file read by its rows: the first record is the header, and
---  each later record is handed to the caller as a row whose fields are
---  read by the header's names or by position.  The dialect is
---  Tabula.Csv_Scan's, never guessed.  The file is read in blocks, one
---  record held at a time.  Nothing raises: a missing file, a refused
---  text and a record whose field count differs from the header's are
---  each an outcome, with the line the refused record began on.
+--  A CSV file read by its rows, and written by them.  The first record
+--  is the header, and each later record is a row whose fields are read
+--  by the header's names or by position.  The dialect is
+--  Tabula.Csv_Scan's, never guessed.  Neither way holds more than one
+--  record at a time.  Nothing raises: a missing file, a refused text and
+--  a record whose field count differs from the header's are outcomes,
+--  each with the line the refused record began on.
 
 package Tabula.Csv is
 
@@ -54,7 +56,35 @@ package Tabula.Csv is
       Process : not null access procedure (Row : Csv.Row);
       Result  : out Outcome);
 
+   --  A CSV file being written: a header, then rows of as many fields,
+   --  buffered beside the path and landed whole by Close.  A row unlike
+   --  the header, or one Each_Row could not read back (past
+   --  Tabula.Csv_Scan's bounds), is refused: the writer has failed, takes
+   --  nothing more, and Close lands nothing.  A writer let go of before
+   --  Close lands nothing either.
+   type Writer is limited private;
+
+   --  Start the file that will be Path with Header; a header of no
+   --  columns, or a path no file can be made beside, fails the writer.
+   procedure Open
+     (W : in out Writer; Path : String; Header : Text_Lists.Vector);
+
+   procedure Put (W : in out Writer; Fields : Text_Lists.Vector);
+
+   --  Whether anything since Open was refused or could not be written.
+   function Failed (W : Writer) return Boolean;
+
+   --  Land the file at its path, replacing what is there; Ok is False,
+   --  and the old file stands, when the writer failed.
+   procedure Close (W : in out Writer; Ok : out Boolean);
+
 private
+
+   type Writer is limited record
+      File    : Staged_Files.Staged_File;
+      Columns : Natural := 0;
+      Failed  : Boolean := False;
+   end record;
 
    package Column_Maps is new
      Ada.Containers.Indefinite_Hashed_Maps
