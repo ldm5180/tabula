@@ -249,6 +249,79 @@ package body Tabula_Config_Tests is
       Assert (Silent, "Has never warns");
    end Test_Has;
 
+   --  A number as a whole count of Scale's units: an integer multiplied,
+   --  a float scaled and rounded, a quoted decimal from its digits; a
+   --  value that does not fit, a non-number and a special float each
+   --  warn and fall back.
+   procedure Test_Scaled (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample
+        ("whole = -7"
+         & ASCII.LF
+         & "bare = 0.2621"
+         & ASCII.LF
+         & "tie = -0.125"
+         & ASCII.LF
+         & "quoted = ""0.2621"""
+         & ASCII.LF
+         & "flag = true",
+         Root);
+
+      Assert (Get_Scaled (Root, "whole", 1_000, 0) = -7_000, "an integer");
+      Assert
+        (Get_Scaled (Root, "bare", 1_000_000, 0) = 262_100, "a bare float");
+      Assert
+        (Get_Scaled (Root, "tie", 100, 0) = -13,
+         "a float's tie rounds away from zero");
+      Assert
+        (Get_Scaled (Root, "quoted", 1_000_000, 0) = 262_100,
+         "a quoted decimal");
+      Assert (Get_Scaled (Root, "absent", 10, -4) = -4, "absent: fallback");
+      Assert (Silent, "all of it silently");
+
+      Assert (Get_Scaled (Root, "flag", 10, 3) = 3, "a boolean falls back");
+      Assert
+        (Warned ("test config: flag is not a number; using default"),
+         "and warns as the real getter does");
+   end Test_Scaled;
+
+   --  Every way a present number fails to fit warns and falls back.
+   procedure Test_Scaled_Range (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample
+        ("big = 9223372036854775807"
+         & ASCII.LF
+         & "float = 1e300"
+         & ASCII.LF
+         & "quoted = ""922337203685477580.8"""
+         & ASCII.LF
+         & "nan = nan"
+         & ASCII.LF
+         & "inf = -inf"
+         & ASCII.LF
+         & "fancy = ""1e3""",
+         Root);
+
+      Assert (Get_Scaled (Root, "big", 2, 1) = 1, "an integer too large");
+      Assert
+        (Warned ("test config: big is out of range at a scale of 2"),
+         "says so, with the scale");
+      Assert (Get_Scaled (Root, "float", 1, 1) = 1, "a float too large");
+      Assert (Warned ("float is out of range"), "says so");
+      Assert (Get_Scaled (Root, "quoted", 10, 1) = 1, "a decimal too large");
+      Assert (Warned ("quoted is out of range"), "says so");
+      Assert (Get_Scaled (Root, "nan", 1, 1) = 1, "a NaN");
+      Assert (Warned ("nan is not a number"), "is not a number");
+      Assert (Get_Scaled (Root, "inf", 1, 1) = 1, "an infinity");
+      Assert (Warned ("inf is not a number"), "is not a number either");
+      Assert (Get_Scaled (Root, "fancy", 1, 1) = 1, "an exotic quoted shape");
+      Assert (Warned ("fancy is not a number"), "is not a number");
+   end Test_Scaled_Range;
+
    --  What Each_Key visited, comma-separated, for Test_Each_Key.
    Keys_Seen : Unbounded_String;
 
@@ -323,6 +396,9 @@ package body Tabula_Config_Tests is
         (T, Test_Missing_File'Access, "missing file is a distinct status");
       Register_Routine (T, Test_Has'Access, "presence check, no fallback");
       Register_Routine (T, Test_Each_Key'Access, "keys in file order");
+      Register_Routine (T, Test_Scaled'Access, "a number at a scale");
+      Register_Routine
+        (T, Test_Scaled_Range'Access, "a scaled number that does not fit");
    end Register_Tests;
 
    overriding
