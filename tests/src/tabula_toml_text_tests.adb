@@ -68,12 +68,119 @@ package body Tabula_Toml_Text_Tests is
       Assert (not Time_Of ("").Ok, "nothing");
    end Test_Time_Text;
 
+   Quote : constant Character := '"';
+
+   procedure Test_Quote_In_String (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+   begin
+      Assert
+        (String_Text ("a""b") = "" & Quote & "a\" & Quote & "b" & Quote,
+         "a quote is escaped: " & String_Text ("a""b"));
+   end Test_Quote_In_String;
+
+   --  Every escape TOML requires in a basic string, and nothing else
+   --  touched: UTF-8 passes as it came.
+   procedure Test_Escapes (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+
+      --  S written as a basic string.
+      function Quoted (S : String) return String
+      is (Quote & S & Quote);
+   begin
+      Assert (String_Text ("") = Quoted (""), "the empty string");
+      Assert (String_Text ("plain") = Quoted ("plain"), "plain text");
+      Assert (String_Text ("a\b") = Quoted ("a\\b"), "a backslash");
+      Assert
+        (String_Text ("a" & ASCII.LF & "b") = Quoted ("a\nb"), "a line feed");
+      Assert
+        (String_Text (ASCII.CR & ASCII.HT & ASCII.BS & ASCII.FF)
+         = Quoted ("\r\t\b\f"),
+         "the named escapes");
+      Assert
+        (String_Text (ASCII.NUL & ASCII.ESC & ASCII.DEL)
+         = Quoted ("\u0000\u001B\u007F"),
+         "other controls by number: " & String_Text (ASCII.ESC & ""));
+      Assert
+        (String_Text ("caf" & Character'Val (16#C3#) & Character'Val (16#A9#))
+         = Quoted ("caf" & Character'Val (16#C3#) & Character'Val (16#A9#)),
+         "UTF-8 passes through");
+   end Test_Escapes;
+
+   procedure Test_Keys (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+   begin
+      Assert (Key_Text ("entry_time") = "entry_time", "a bare key");
+      Assert (Key_Text ("A-z_09") = "A-z_09", "every bare character");
+      Assert (Key_Text ("a.b") = Quote & "a.b" & Quote, "a dot is quoted");
+      Assert
+        (Key_Text ("two words") = Quote & "two words" & Quote,
+         "a blank is quoted");
+      Assert (Key_Text ("") = Quote & Quote, "the empty key is quoted");
+      Assert
+        (Key_Text ("say""hi") = Quote & "say\" & Quote & "hi" & Quote,
+         "and escaped as a string is");
+   end Test_Keys;
+
+   procedure Test_Number_Text (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+   begin
+      Assert (Is_Number_Text ("0.0314"), "a decimal");
+      Assert (Is_Number_Text ("-12"), "a signed integer");
+      Assert (Is_Number_Text ("+1.5"), "a plus sign");
+      Assert (Is_Number_Text ("0"), "zero");
+      Assert (Is_Number_Text ("-0.5"), "a leading zero alone");
+      Assert (Is_Number_Text ("9223372036854775807"), "the largest integer");
+      Assert
+        (Is_Number_Text ("123456789.012345"), "fifteen significant digits");
+      Assert
+        (Is_Number_Text ("0.000123456789012345"),
+         "leading zeros are not significant");
+
+      Assert (not Is_Number_Text ("007"), "TOML forbids leading zeros");
+      Assert (not Is_Number_Text ("00.5"), "in a decimal too");
+      Assert
+        (not Is_Number_Text ("9223372036854775808"),
+         "an integer past 64 bits");
+      Assert
+        (not Is_Number_Text ("1234567890.123456"),
+         "sixteen significant digits, more than a double holds");
+      Assert (not Is_Number_Text ("1e3"), "an exponent");
+      Assert (not Is_Number_Text ("1_000"), "an underscore");
+      Assert (not Is_Number_Text ("nan"), "a special float");
+      Assert (not Is_Number_Text (""), "nothing");
+   end Test_Number_Text;
+
+   procedure Test_Date_Time_Text (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+   begin
+      Assert (Date_Text ((2020, 1, 2)) = "2020-01-02", "a date, padded");
+      Assert (Date_Text ((1, 12, 31)) = "0001-12-31", "a year, padded");
+      Assert (Time_Text ((9, 5, 0)) = "09:05:00", "a time, padded");
+      Assert (Time_Text ((23, 59, 60)) = "23:59:60", "a leap second");
+      Assert
+        (Reads_As (Date_Text ((2024, 2, 29)), (2024, 2, 29)),
+         "a date's text reads back as the date");
+      Assert
+        (Reads_As_Time (Time_Text ((16, 15, 7)), (16, 15, 7)),
+         "and a time's as the time");
+   end Test_Date_Time_Text;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
       Register_Routine (T, Test_Calendar'Access, "which dates are real");
       Register_Routine (T, Test_Date_Text'Access, "a date's text");
       Register_Routine (T, Test_Time_Text'Access, "a time's text");
+      Register_Routine
+        (T, Test_Quote_In_String'Access, "a quote in a string is escaped");
+      Register_Routine (T, Test_Escapes'Access, "a basic string's escapes");
+      Register_Routine (T, Test_Keys'Access, "a key, bare or quoted");
+      Register_Routine
+        (T, Test_Number_Text'Access, "what the writer passes as a number");
+      Register_Routine
+        (T, Test_Date_Time_Text'Access, "a date's and a time's text");
    end Register_Tests;
 
    overriding
