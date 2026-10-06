@@ -41,6 +41,7 @@ package Tabula_Steps is
       E_Check_Absent,
       E_Walk_Strings,
       E_Walk_Sections,
+      E_Walk_Keys,
       E_Check_Items,
       --  Events no pattern names: a machine posts them to itself after
       --  an action whose result the next row's guard reads.
@@ -150,6 +151,7 @@ package Tabula_Steps is
       Step ("it is absent")                                     >= E_Check_Absent,
       Step ("the strings of {word} are walked")                 >= E_Walk_Strings,
       Step ("the sections of {word} are walked")                >= E_Walk_Sections,
+      Step ("the keys are walked")                              >= E_Walk_Keys,
       Step ("the items were {string}")                          >= E_Check_Items];
    --!format on
 

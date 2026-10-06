@@ -13,6 +13,7 @@ package body Tabula_Steps.Walks is
      (A_Nothing,
       A_Walk_Strings,
       A_Walk_Sections,
+      A_Walk_Keys,
       A_Again,
       A_Refuse_No_Table,
       A_Check_Items);
@@ -69,6 +70,16 @@ package body Tabula_Steps.Walks is
       Tabula.Config.Each_Section (Ctx.W.Root, Key (Ctx), Visit'Access);
    end Visit_Sections;
 
+   procedure Visit_Keys (Ctx : in out Step_Context) is
+      procedure Visit (Key : String) is
+      begin
+         Add (Ctx.W.Items, Key);
+      end Visit;
+   begin
+      Ctx.W.Items := Null_Unbounded_String;
+      Tabula.Config.Each_Key (Ctx.W.Root, Visit'Access);
+   end Visit_Keys;
+
    procedure Execute
      (A : Action_Kind; Ctx : in out Step_Context; Evt : Step_Kind) is
    begin
@@ -81,6 +92,9 @@ package body Tabula_Steps.Walks is
 
          when A_Walk_Sections   =>
             Visit_Sections (Ctx);
+
+         when A_Walk_Keys       =>
+            Visit_Keys (Ctx);
 
          when A_Again           =>
             Then_Take (Ctx, Evt);
@@ -111,6 +125,7 @@ package body Tabula_Steps.Walks is
 
    Walk_Strings  : constant Ev := (Kind => E_Walk_Strings);
    Walk_Sections : constant Ev := (Kind => E_Walk_Sections);
+   Walk_Keys     : constant Ev := (Kind => E_Walk_Keys);
    Check_Items   : constant Ev := (Kind => E_Check_Items);
 
    --!format off
@@ -119,8 +134,11 @@ package body Tabula_Steps.Walks is
       Unwalked + Walk_Strings             / A_Walk_Strings    >= Walked,
       Unwalked + Walk_Sections (No_Table) / A_Refuse_No_Table >= Unwalked,
       Unwalked + Walk_Sections            / A_Walk_Sections   >= Walked,
+      Unwalked + Walk_Keys     (No_Table) / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Walk_Keys                / A_Walk_Keys       >= Walked,
       Walked   + Walk_Strings             / A_Again           >= Unwalked,
       Walked   + Walk_Sections            / A_Again           >= Unwalked,
+      Walked   + Walk_Keys                / A_Again           >= Unwalked,
       Walked   + Check_Items              / A_Check_Items     >= Walked];
    --!format on
 

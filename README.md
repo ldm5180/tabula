@@ -14,8 +14,9 @@ never crash it.
   [ada_toml](https://github.com/pmderodat/ada-toml): `Load` (file, with
   distinct `Missing` / `Malformed` outcomes) or `Parse` (in-memory),
   `Section`, overloaded `Get` for Boolean / Natural (with a `Min` guard) /
-  String (with `Require_Non_Empty`) / Long_Float, and `Each_String` for
-  string arrays. Every table carries a label and a `Warner` callback, so
+  String (with `Require_Non_Empty`) / Long_Float, `Each_String` for
+  string arrays, `Each_Section` for arrays of tables, and `Each_Key` for
+  the keys a table holds, in the file's order. Every table carries a label and a `Warner` callback, so
   complaints read like `feed config: retries is not a number in 1 ..
   Natural'Last; using default`.
 - **`Tabula.Decimals`** — the SPARK-proven shape check behind quoted exact

@@ -249,6 +249,60 @@ package body Tabula_Config_Tests is
       Assert (Silent, "Has never warns");
    end Test_Has;
 
+   --  What Each_Key visited, comma-separated, for Test_Each_Key.
+   Keys_Seen : Unbounded_String;
+
+   procedure Collect_Key (Key : String) is
+   begin
+      Append (Keys_Seen, Key & ",");
+   end Collect_Key;
+
+   --  Each_Key over Root's sub-table Name, from nothing seen.
+   function Keys_Of (Root : Table; Name : String := "") return String is
+   begin
+      Keys_Seen := Null_Unbounded_String;
+      Each_Key
+        ((if Name = "" then Root else Section (Root, Name)),
+         Collect_Key'Access);
+      return To_String (Keys_Seen);
+   end Keys_Of;
+
+   --  Keys come in the order the file wrote them -- not sorted -- with
+   --  sub-tables and arrays of tables among them; a section lists its
+   --  own; an empty or non-table value lists none, silently.
+   procedure Test_Each_Key (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root  : Table;
+      Empty : Table;
+   begin
+      Parse_Sample
+        ("zeta = 1"
+         & ASCII.LF
+         & "alpha = ""a"""
+         & ASCII.LF
+         & "mid = [1, 2]"
+         & ASCII.LF
+         & "[[runs]]"
+         & ASCII.LF
+         & "[box]"
+         & ASCII.LF
+         & "inner = true"
+         & ASCII.LF
+         & "first = 0",
+         Root);
+
+      Assert
+        (Keys_Of (Root) = "zeta,alpha,mid,runs,box,",
+         "the root's keys in file order: " & Keys_Of (Root));
+      Assert
+        (Keys_Of (Root, "box") = "inner,first,",
+         "a section lists its own keys: " & Keys_Of (Root, "box"));
+      Assert (Keys_Of (Root, "zeta") = "", "a non-table lists nothing");
+      Assert (Keys_Of (Root, "absent") = "", "an absent table, nothing");
+      Assert (Keys_Of (Empty) = "", "an empty table, nothing");
+      Assert (Silent, "and none of it says anything");
+   end Test_Each_Key;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -268,6 +322,7 @@ package body Tabula_Config_Tests is
       Register_Routine
         (T, Test_Missing_File'Access, "missing file is a distinct status");
       Register_Routine (T, Test_Has'Access, "presence check, no fallback");
+      Register_Routine (T, Test_Each_Key'Access, "keys in file order");
    end Register_Tests;
 
    overriding
