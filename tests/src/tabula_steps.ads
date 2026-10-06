@@ -1,6 +1,7 @@
 with Ada.Strings.Unbounded;
 
 with Tabula.Config;
+with Tabula.Emit;
 
 with Fabula.Args;
 with Fabula.Check;
@@ -21,6 +22,7 @@ package Tabula_Steps is
      (E_Parse_Doc,
       E_Load_File,
       E_Load_Missing,
+      E_Load_Saved,
       E_Check_Loaded,
       E_Check_Malformed,
       E_Check_Missing,
@@ -48,6 +50,21 @@ package Tabula_Steps is
       E_Walk_Sections,
       E_Walk_Keys,
       E_Check_Items,
+      E_New_Document,
+      E_Write_Comment,
+      E_Begin_Table,
+      E_Begin_Array_Table,
+      E_Write_Text,
+      E_Write_Count,
+      E_Write_Number,
+      E_Write_Flag,
+      E_Write_Strings,
+      E_Write_Date,
+      E_Write_Time,
+      E_Save_Document,
+      E_Check_Saved,
+      E_Check_Unsaved,
+      E_Check_Refused,
       --  Events no pattern names: a machine posts them to itself after
       --  an action whose result the next row's guard reads.
       E_Given);
@@ -95,7 +112,8 @@ package Tabula_Steps is
    --  What one scenario reads back.  fabula copies it per step, so it
    --  holds values only: the table in hand (a reference to the parsed
    --  document) and its label, what was read from it, and the default
-   --  the read was given, and what a walk visited.
+   --  the read was given, what a walk visited, and the document being
+   --  written and whether it saved.
    type World is record
       Root    : Tabula.Config.Table;
       Label   : Unbounded_String;
@@ -104,6 +122,8 @@ package Tabula_Steps is
       Got     : Reading;
       Default : Reading;
       Items   : Unbounded_String;
+      Doc     : Tabula.Emit.Document;
+      Saved   : Boolean := False;
    end record;
 
    --  One step as a machine sees it: the scenario, the step's arguments,
@@ -144,6 +164,8 @@ package Tabula_Steps is
       Step ("a config labelled {string} from the file {word}")  >= E_Load_File,
       Step ("a config labelled {string} from a file that does not exist")
                                                                 >= E_Load_Missing,
+      Step ("a config labelled {string} from the saved document")
+                                                                >= E_Load_Saved,
       Step ("the config loaded")                                >= E_Check_Loaded,
       Step ("the config is malformed")                          >= E_Check_Malformed,
       Step ("the config is missing")                            >= E_Check_Missing,
@@ -175,7 +197,22 @@ package Tabula_Steps is
       Step ("the strings of {word} are walked")                 >= E_Walk_Strings,
       Step ("the sections of {word} are walked")                >= E_Walk_Sections,
       Step ("the keys are walked")                              >= E_Walk_Keys,
-      Step ("the items were {string}")                          >= E_Check_Items];
+      Step ("the items were {string}")                          >= E_Check_Items,
+      Step ("a new document")                                   >= E_New_Document,
+      Step ("the comment {string} is written")                  >= E_Write_Comment,
+      Step ("the table {word} is begun")                        >= E_Begin_Table,
+      Step ("the array table {word} is begun")                  >= E_Begin_Array_Table,
+      Step ("the text {word} is written as {string}")           >= E_Write_Text,
+      Step ("the count {word} is written as {int}")             >= E_Write_Count,
+      Step ("the number {word} is written as {word}")           >= E_Write_Number,
+      Step ("the flag {word} is written as {word}")             >= E_Write_Flag,
+      Step ("the strings {word} are written as {string}")       >= E_Write_Strings,
+      Step ("the date {word} is written as {word}")             >= E_Write_Date,
+      Step ("the time {word} is written as {word}")             >= E_Write_Time,
+      Step ("the document is saved")                            >= E_Save_Document,
+      Step ("it was saved")                                     >= E_Check_Saved,
+      Step ("it was not saved")                                 >= E_Check_Unsaved,
+      Step ("the document refused {word}")                      >= E_Check_Refused];
    --!format on
 
    Hook_Defs : constant Steps.Hook_Table := [Before >= Fresh_World];

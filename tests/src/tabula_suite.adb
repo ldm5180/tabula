@@ -2,6 +2,9 @@ with AUnit.Test_Cases;
 
 with Tabula_Config_Tests;
 with Tabula_Decimals_Tests;
+with Tabula_Emit_Tests;
+with Tabula_Staged_Files_Tests;
+with Tabula_Text_Lists_Tests;
 with Tabula_Toml_Text_Tests;
 
 package body Tabula_Suite is
@@ -18,6 +21,9 @@ package body Tabula_Suite is
       Add (new Tabula_Decimals_Tests.Test);
       Add (new Tabula_Config_Tests.Test);
       Add (new Tabula_Toml_Text_Tests.Test);
+      Add (new Tabula_Text_Lists_Tests.Test);
+      Add (new Tabula_Staged_Files_Tests.Test);
+      Add (new Tabula_Emit_Tests.Test);
       return Result;
    end Suite;
 

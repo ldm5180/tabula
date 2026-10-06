@@ -1,3 +1,5 @@
+with Ada.Directories;
+
 with Tabula_Steps.Flows;
 with Tabula_World;
 
@@ -10,7 +12,7 @@ package body Tabula_Steps.Configs is
    --  empty one a missing or malformed config leaves.
    type State is (Unparsed, Given, Parsed, Refused);
 
-   type Guard_Kind is (Always, Doc_Given, File_Named, Loaded);
+   type Guard_Kind is (Always, Doc_Given, File_Named, Document_Saved, Loaded);
 
    type Action_Kind is
      (A_Nothing,
@@ -18,8 +20,10 @@ package body Tabula_Steps.Configs is
       A_Parse,
       A_Load,
       A_Load_Missing,
+      A_Load_Saved,
       A_Refuse_Doc,
       A_Refuse_File,
+      A_Refuse_Unsaved,
       A_Take_Section,
       --  Checking it.
       A_Check_Loaded,
@@ -56,11 +60,13 @@ package body Tabula_Steps.Configs is
    begin
       return
         (case G is
-           when Always     => True,
-           when Doc_Given  => Fabula.Args.Has_Doc (Ctx.A),
-           when File_Named =>
+           when Always         => True,
+           when Doc_Given      => Fabula.Args.Has_Doc (Ctx.A),
+           when File_Named     =>
              Tabula_World.Named_Exists (Dir (Ctx), File (Ctx)),
-           when Loaded     => Ctx.W.Status = Tabula.Config.Loaded);
+           when Document_Saved =>
+             Ada.Directories.Exists (Tabula_World.Saved_Document),
+           when Loaded         => Ctx.W.Status = Tabula.Config.Loaded);
    end Evaluate;
 
    ---------------------------------------------------------------------
@@ -97,24 +103,30 @@ package body Tabula_Steps.Configs is
    procedure Execute_Give (A : Give_Action; Ctx : in out Step_Context) is
    begin
       case A is
-         when A_Parse        =>
+         when A_Parse          =>
             Parse (Ctx);
 
-         when A_Load         =>
+         when A_Load           =>
             Load (Ctx, Tabula_World.Named (Dir (Ctx), File (Ctx)));
 
-         when A_Load_Missing =>
+         when A_Load_Missing   =>
             Load (Ctx, Tabula_World.Named (Dir (Ctx), Absent_Name));
 
-         when A_Refuse_Doc   =>
+         when A_Load_Saved     =>
+            Load (Ctx, Tabula_World.Saved_Document);
+
+         when A_Refuse_Doc     =>
             Fabula.Check.Fail_Step
               (Ctx.R, "the config is the step's doc string, and it has none");
 
-         when A_Refuse_File  =>
+         when A_Refuse_File    =>
             Fabula.Check.Fail_Step
               (Ctx.R, "no config named " & File (Ctx) & " in " & Dir (Ctx));
 
-         when A_Take_Section =>
+         when A_Refuse_Unsaved =>
+            Fabula.Check.Fail_Step (Ctx.R, "no document was saved to read");
+
+         when A_Take_Section   =>
             Ctx.W.Root :=
               Tabula.Config.Section
                 (Ctx.W.Root, Fabula.Args.Word (Ctx.A, Name_Capture));
@@ -207,6 +219,7 @@ package body Tabula_Steps.Configs is
    Parse_Doc       : constant Ev := (Kind => E_Parse_Doc);
    Load_File       : constant Ev := (Kind => E_Load_File);
    Load_Missing    : constant Ev := (Kind => E_Load_Missing);
+   Load_Saved      : constant Ev := (Kind => E_Load_Saved);
    Given_Config    : constant Ev := (Kind => E_Given);
    Take_Section    : constant Ev := (Kind => E_Take_Section);
    Check_Loaded    : constant Ev := (Kind => E_Check_Loaded);
@@ -222,6 +235,8 @@ package body Tabula_Steps.Configs is
       Unparsed + Load_File       (File_Named) / A_Load            >= Given,
       Unparsed + Load_File                    / A_Refuse_File     >= Unparsed,
       Unparsed + Load_Missing                 / A_Load_Missing    >= Given,
+      Unparsed + Load_Saved  (Document_Saved) / A_Load_Saved      >= Given,
+      Unparsed + Load_Saved                   / A_Refuse_Unsaved  >= Unparsed,
 
       Given    + Given_Config    (Loaded)     / A_Nothing         >= Parsed,
       Given    + Given_Config                 / A_Nothing         >= Refused,

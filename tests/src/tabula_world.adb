@@ -1,5 +1,6 @@
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Directories;
+with Ada.Streams.Stream_IO;
 with Ada.Strings.Fixed;
 
 package body Tabula_World is
@@ -75,10 +76,9 @@ package body Tabula_World is
    function Prefix (Label : String) return String
    is (Label & ": ");
 
-   function Starts (Message, Head : String) return Boolean
-   is (Message'Length >= Head'Length
-       and then Message (Message'First .. Message'First + Head'Length - 1)
-                = Head);
+   function Begins_With (Text, Head : String) return Boolean
+   is (Text'Length >= Head'Length
+       and then Text (Text'First .. Text'First + Head'Length - 1) = Head);
 
    --  Whether Text names Key as a whole word, blank-delimited.
    function Names (Text, Key : String) return Boolean
@@ -86,7 +86,7 @@ package body Tabula_World is
 
    function Complained (Label, Key : String) return Boolean
    is (for some Message of Warnings =>
-         Starts (Message, Prefix (Label))
+         Begins_With (Message, Prefix (Label))
          and then Names
                     (Message
                        (Message'First + Prefix (Label)'Length .. Message'Last),
@@ -100,5 +100,51 @@ package body Tabula_World is
       end loop;
       return Ada.Strings.Unbounded.To_String (Text);
    end Warnings_Text;
+
+   --  Where scratch files go, relative to the crate root both test
+   --  runners run from.
+   Scratch_Dir : constant String := "tests/obj/scratch";
+
+   function Scratch (Name : String) return String is
+   begin
+      Ada.Directories.Create_Path (Scratch_Dir);
+      return Ada.Directories.Compose (Scratch_Dir, Name);
+   end Scratch;
+
+   procedure Delete_If_There (Path : String) is
+   begin
+      if Ada.Directories.Exists (Path) then
+         Ada.Directories.Delete_File (Path);
+      end if;
+   end Delete_If_There;
+
+   --  What the staged writers name the file they write before renaming.
+   Staging_Suffix : constant String := ".tmp";
+
+   procedure Clear_Scratch (Name : String) is
+   begin
+      Delete_If_There (Scratch (Name));
+      Delete_If_There (Scratch (Name) & Staging_Suffix);
+   end Clear_Scratch;
+
+   function Saved_Document return String
+   is (Scratch (Saved_Name));
+
+   function Contents (Path : String) return String is
+      use Ada.Streams.Stream_IO;
+      File : File_Type;
+   begin
+      if not Ada.Directories.Exists (Path) then
+         return "";
+      end if;
+      Open (File, In_File, Path);
+      declare
+         Text : String (1 .. Natural (Size (File)));
+      begin
+         String'Read (Stream (File), Text);
+         Close (File);
+         return Text;
+      end;
+   end Contents;
 
 end Tabula_World;
