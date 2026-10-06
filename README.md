@@ -39,6 +39,17 @@ never crash it.
   `Save` writes beside the path and renames, so the file in place is
   the old one or the whole new one.  What it writes reads back through
   `Tabula.Config` to the values written.
+- **`Tabula.Csv`** — a CSV file read by its rows: `Each_Row` takes the
+  first record as the header and hands each later one over, its fields
+  by the header's names (`Field (Row, "entry_time")`) or by position.
+  One dialect, never guessed: comma, double quote, a doubled quote
+  inside quotes, LF or CRLF.  The file is read in blocks, one record
+  held at a time; a refused text (`Malformed`) and a record whose
+  field count differs from the header's (`Ragged`) come back with the
+  line the record began on.
+- **`Tabula.Csv_Scan`** — the proven scanner under it, an sml machine
+  over one character at a time, its record bounded and a record past
+  the bounds refused, never cut.
 - **`Tabula.Toml_Text`** — the proven text of TOML scalars, both ways:
   keys bare or quoted, basic strings with their escapes, the decimal
   text a writer may pass unquoted, dates and times.

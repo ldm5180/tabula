@@ -1,11 +1,14 @@
+with "sml";
+
 --  SPARK proof target.  Not built by `alr build`; analysed with
 --  `alr exec -- gnatprove -P proof/proof.gpr`.
 --
 --  Sources the SPARK core directly (rather than withing tabula.gpr)
 --  because the Alire-generated config gpr withs every dependency's
 --  project, which would drag the adapter's foreign code (ada_toml) into
---  the proof tree.  This tree is exactly the proof harnesses + src/core,
---  mirroring sml-ada's proof setup.
+--  the proof tree.  This tree is exactly the proof harnesses + src/core
+--  + sml, whose machine the CSV scanner instantiates, mirroring
+--  sml-ada's proof setup.
 project Proof is
 
    for Source_Dirs use ("src", "../src/core");

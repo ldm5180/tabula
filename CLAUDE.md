@@ -33,21 +33,25 @@ never crash it — no getter raises.
 ## Layout
 
 - `src/core/` — the SPARK core (`Tabula.Decimals`, `Tabula.Toml_Text`,
-  and the root's calendar types): every unit carries `SPARK_Mode`, does
-  zero IO, and may `with` only other core units.
+  `Tabula.Csv_Scan`, and the root's calendar types): every unit carries
+  `SPARK_Mode`, does zero IO, and may `with` only other core units and
+  sml (the CSV scanner is an sml machine; `sml` is a declared
+  dependency that takes fabula's pin).
 - `src/app/`  — the ada_toml adapter (`Tabula.Config`): all ada_toml
   specifics stay behind this one unit; parser refusals become a
   `Malformed` status at this boundary and never escape as exceptions.
   The writer (`Tabula.Emit`) builds on the core's text functions and
   `Tabula.Staged_Files` (write beside, rename into place);
-  `Tabula.Text_Lists` is the list of texts the writers take.
+  `Tabula.Text_Lists` is the list of texts the writers take.  The CSV
+  reader (`Tabula.Csv`) feeds the core scanner a block at a time.
 - `tests/` — AUnit suite (`test_tabula.gpr`, driver `test_runner.adb`)
   and the Gherkin features: `tests/features/*.feature`, run by
   `tabula_features.ads` (`Fabula.Main` over `Tabula_Steps`).  The steps
   are events of sml machines, one region per thing a step acts on --
   `Tabula_Steps.Configs` (where the table comes from), `.Knobs` (what
   is read from it), `.Walks` (the array and key walkers), `.Emits` (a
-  document written and saved) -- each a child with
+  document written and saved), `.Csv_Files` (a CSV file given, read and
+  checked) -- each a child with
   its own transition table, over the `Tabula_Steps.Flows` runner; a
   step no region takes fails naming every region's state.
   `Tabula_World` is the recording warner, the parse and the load the
@@ -56,7 +60,8 @@ never crash it — no getter raises.
   `tests/features/configs/<name>.toml`.
 - `example/` — standalone demo main; pure, built and run in CI.
 - `proof/` — gnatprove harness (`proof.gpr`; sources `../src/core`
-  directly and withs nothing, keeping foreign code out of the proof tree).
+  directly and withs only sml, keeping foreign code out of the proof
+  tree).
 - `docs/tdd-log.md` — git-ignored TDD audit log.
 
 ## SPARK

@@ -130,6 +130,15 @@ package body Tabula_World is
    function Saved_Document return String
    is (Scratch (Saved_Name));
 
+   procedure Write_File (Path, Text : String) is
+      use Ada.Streams.Stream_IO;
+      File : File_Type;
+   begin
+      Create (File, Out_File, Path);
+      String'Write (Stream (File), Text);
+      Close (File);
+   end Write_File;
+
    function Contents (Path : String) return String is
       use Ada.Streams.Stream_IO;
       File : File_Type;
