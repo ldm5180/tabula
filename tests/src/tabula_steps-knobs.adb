@@ -1,4 +1,5 @@
 with Fabula.Check.Ints;
+with Fabula.Check.Longs;
 with Fabula.Check.Reals;
 
 with Tabula.Decimals;
@@ -19,11 +20,14 @@ package body Tabula_Steps.Knobs is
       Count_Default,
       Bounds_Given,
       Decimal_Default,
+      Scale_Given,
+      Scaled_Given,
       Bool_Said,
       Count_Kept,
       Text_Kept,
       Real_Said,
       Real_Kept,
+      Scaled_Kept,
       Presence_Kept);
 
    type Action_Kind is
@@ -35,6 +39,7 @@ package body Tabula_Steps.Knobs is
       A_Read_String,
       A_Read_Required,
       A_Read_Real,
+      A_Read_Scaled,
       A_Ask_Has,
       A_Again,
       --  Refusing a step written wrong.
@@ -43,6 +48,8 @@ package body Tabula_Steps.Knobs is
       A_Refuse_Default,
       A_Refuse_Floor,
       A_Refuse_Decimal_Default,
+      A_Refuse_Scale,
+      A_Refuse_Long_Default,
       A_Refuse_Reading,
       A_Refuse_Decimal,
       A_Refuse_Unasked,
@@ -51,6 +58,7 @@ package body Tabula_Steps.Knobs is
       A_Check_Count,
       A_Check_Word_Text,
       A_Check_Real,
+      A_Check_Scaled,
       A_Check_Text,
       A_Check_Default,
       A_Check_Present,
@@ -62,10 +70,12 @@ package body Tabula_Steps.Knobs is
    subtype Check_Action is Action_Kind range A_Check_Bool .. A_Check_Absent;
 
    --  Where each value sits among a step's captures.
-   Key_Capture     : constant := 1;
-   Default_Capture : constant := 2;
-   Floor_Capture   : constant := 3;
-   Want_Capture    : constant := 1;
+   Key_Capture            : constant := 1;
+   Default_Capture        : constant := 2;
+   Floor_Capture          : constant := 3;
+   Want_Capture           : constant := 1;
+   Scale_Capture          : constant := 2;
+   Scaled_Default_Capture : constant := 3;
 
    function Key (Ctx : Step_Context) return String
    is (Fabula.Args.Word (Ctx.A, Key_Capture));
@@ -88,6 +98,7 @@ package body Tabula_Steps.Knobs is
          when Count    => Fabula.Check.Integer_Image (R.Number),
          when Text     => '"' & To_String (R.Words) & '"',
          when Real     => Fabula.Check.Real_Image (R.Value),
+         when Scaled   => Fabula.Check.Long_Image (R.Units),
          when Presence => (if R.Present then "present" else "absent"));
 
    --  A decimal as a feature writes it: the text the crate's own gate
@@ -103,6 +114,14 @@ package body Tabula_Steps.Knobs is
 
    function Kept (Ctx : Step_Context; Kind : Reading_Kind) return Boolean
    is (Ctx.W.Got.Kind = Kind);
+
+   --  Whether the scale a step gives is a whole number of one or more.
+   function Scale_Read (Ctx : Step_Context) return Boolean
+   is (Count_Read (Ctx, Scale_Capture)
+       and then Count (Ctx, Scale_Capture) > 0);
+
+   function Long_Default_Read (Ctx : Step_Context) return Boolean
+   is (Fabula.Args.Long (Ctx.A, Scaled_Default_Capture).Ok);
 
    function Evaluate
      (G : Guard_Kind; Ctx : Step_Context; Evt : Step_Kind) return Boolean
@@ -125,6 +144,10 @@ package body Tabula_Steps.Knobs is
            when Text_Kept       => Kept (Ctx, Text),
            when Decimal_Default =>
              Is_Decimal (Fabula.Args.Word (Ctx.A, Default_Capture)),
+           when Scale_Given     => Scale_Read (Ctx),
+           when Scaled_Given    =>
+             Scale_Read (Ctx) and then Long_Default_Read (Ctx),
+           when Scaled_Kept     => Kept (Ctx, Scaled),
            when Real_Said       =>
              Kept (Ctx, Real) and then Is_Decimal (Want (Ctx)),
            when Real_Kept       => Kept (Ctx, Real),
@@ -186,6 +209,20 @@ package body Tabula_Steps.Knobs is
          (Real, Default));
    end Get_Real;
 
+   procedure Get_Scaled (Ctx : in out Step_Context)
+   with Pre => Scale_Read (Ctx) and then Long_Default_Read (Ctx)
+   is
+      Default : constant Long_Long_Integer :=
+        Fabula.Args.Long (Ctx.A, Scaled_Default_Capture).Value;
+   begin
+      Keep
+        (Ctx,
+         (Scaled,
+          Tabula.Config.Get_Scaled
+            (Ctx.W.Root, Key (Ctx), Count (Ctx, Scale_Capture), Default)),
+         (Scaled, Default));
+   end Get_Scaled;
+
    procedure Ask (Ctx : in out Step_Context) is
    begin
       Keep
@@ -216,6 +253,9 @@ package body Tabula_Steps.Knobs is
          when A_Read_Real      =>
             Get_Real (Ctx);
 
+         when A_Read_Scaled    =>
+            Get_Scaled (Ctx);
+
          when A_Ask_Has        =>
             Ask (Ctx);
 
@@ -245,6 +285,16 @@ package body Tabula_Steps.Knobs is
               (Ctx.R,
                Fabula.Args.Word (Ctx.A, Default_Capture)
                & " is not a plain decimal");
+
+         when A_Refuse_Scale           =>
+            Fabula.Check.Fail_Step
+              (Ctx.R, "a scale is a whole number of one or more");
+
+         when A_Refuse_Long_Default    =>
+            Fabula.Check.Longs.Fail_Read
+              (Ctx.R,
+               Fabula.Args.Long (Ctx.A, Scaled_Default_Capture).Error,
+               "the default");
 
          when A_Refuse_Decimal         =>
             Fabula.Check.Fail_Step
@@ -285,6 +335,10 @@ package body Tabula_Steps.Knobs is
          when A_Check_Real                     =>
             Fabula.Check.Reals.Equal
               (Ctx.R, Ctx.W.Got.Value, Decimal (Want (Ctx)));
+
+         when A_Check_Scaled                   =>
+            Fabula.Check.Longs.Equal
+              (Ctx.R, Ctx.W.Got.Units, Fabula.Args.Long (Ctx.A, Want_Capture));
 
          when A_Check_Word_Text | A_Check_Text =>
             Fabula.Check.Text_Equal
@@ -348,6 +402,7 @@ package body Tabula_Steps.Knobs is
    Read_String    : constant Ev := (Kind => E_Read_String);
    Read_Required  : constant Ev := (Kind => E_Read_Required);
    Read_Real      : constant Ev := (Kind => E_Read_Real);
+   Read_Scaled    : constant Ev := (Kind => E_Read_Scaled);
    Ask_Has        : constant Ev := (Kind => E_Ask_Has);
    Check_Reading  : constant Ev := (Kind => E_Check_Reading);
    Check_Text     : constant Ev := (Kind => E_Check_Text);
@@ -374,6 +429,10 @@ package body Tabula_Steps.Knobs is
       Unread + Read_Real      (No_Table)      / A_Refuse_No_Table     >= Unread,
       Unread + Read_Real      (Decimal_Default) / A_Read_Real         >= Read,
       Unread + Read_Real                      / A_Refuse_Decimal_Default >= Unread,
+      Unread + Read_Scaled    (No_Table)      / A_Refuse_No_Table     >= Unread,
+      Unread + Read_Scaled    (Scaled_Given)  / A_Read_Scaled         >= Read,
+      Unread + Read_Scaled    (Scale_Given)   / A_Refuse_Long_Default >= Unread,
+      Unread + Read_Scaled                    / A_Refuse_Scale        >= Unread,
       Unread + Ask_Has        (No_Table)      / A_Refuse_No_Table     >= Unread,
       Unread + Ask_Has                        / A_Ask_Has             >= Read,
 
@@ -383,6 +442,7 @@ package body Tabula_Steps.Knobs is
       Read   + Read_String                    / A_Again               >= Unread,
       Read   + Read_Required                  / A_Again               >= Unread,
       Read   + Read_Real                      / A_Again               >= Unread,
+      Read   + Read_Scaled                    / A_Again               >= Unread,
       Read   + Ask_Has                        / A_Again               >= Unread,
 
       Read   + Check_Reading  (Bool_Said)     / A_Check_Bool          >= Read,
@@ -390,6 +450,7 @@ package body Tabula_Steps.Knobs is
       Read   + Check_Reading  (Text_Kept)     / A_Check_Word_Text     >= Read,
       Read   + Check_Reading  (Real_Said)     / A_Check_Real          >= Read,
       Read   + Check_Reading  (Real_Kept)     / A_Refuse_Decimal      >= Read,
+      Read   + Check_Reading  (Scaled_Kept)   / A_Check_Scaled        >= Read,
       Read   + Check_Reading                  / A_Refuse_Reading      >= Read,
       Read   + Check_Text     (Text_Kept)     / A_Check_Text          >= Read,
       Read   + Check_Text                     / A_Refuse_Reading      >= Read,

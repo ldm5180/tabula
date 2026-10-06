@@ -88,6 +88,17 @@ package Tabula.Config is
    function Get
      (T : Table; Key : String; Fallback : Long_Float) return Long_Float;
 
+   --  A number as a whole count of Scale's units (0.2621 at a scale of a
+   --  million is 262100), for a caller with no floating point: rounded
+   --  to the nearest unit, a half away from zero.  A TOML integer is
+   --  multiplied exactly, a quoted plain decimal is scaled from its
+   --  digits exactly, and a TOML float is scaled and rounded.  A result
+   --  outside Tabula.Decimals.Scaled_Value warns and falls back, as a
+   --  value that is not a number does.
+   function Get_Scaled
+     (T : Table; Key : String; Scale : Positive; Fallback : Long_Long_Integer)
+      return Long_Long_Integer;
+
    --  Walk the strings of an array knob: an absent key does nothing, a
    --  non-array warns and does nothing, each non-string entry warns and
    --  is skipped.

@@ -10,6 +10,7 @@ package body Tabula.Config is
    use Ada.Strings.Unbounded;
    use type TOML.Any_Value_Kind;
    use type TOML.Float_Kind;
+   use type TOML.Valid_Float;
 
    --  One complaint through the table's handler (a no-op when null).
    procedure Complain (T : Table; Suffix : String) is
@@ -22,6 +23,10 @@ package body Tabula.Config is
    --  Whether V is a table: present, and of the table kind.
    function Is_Table (V : TOML.TOML_Value) return Boolean
    is (not TOML.Is_Null (V) and then TOML.Kind (V) = TOML.TOML_Table);
+
+   --  What a real or scaled knob that is not a number warns, after its
+   --  key.
+   Not_A_Number : constant String := " is not a number; using default";
 
    --  Key's value in T -- No_TOML_Value when T is empty (or not a
    --  table) or the key is absent.  Absence is the SILENT path.
@@ -197,9 +202,84 @@ package body Tabula.Config is
          end;
       end if;
 
-      Complain (T, Key & " is not a number; using default");
+      Complain (T, Key & Not_A_Number);
       return Fallback;
    end Get;
+
+   --  A regular float times Scale, rounded by the conversion's own rule
+   --  (to the nearest whole, a half away from zero); Fits is False past
+   --  Scaled_Value, an infinite product among them.
+   function Scaled_Float
+     (F : TOML.Valid_Float; Scale : Positive) return Decimals.Scaled_Read
+   is
+      Bound   : constant TOML.Valid_Float := 2.0**63;
+      Product : constant TOML.Valid_Float := F * TOML.Valid_Float (Scale);
+   begin
+      if abs Product >= Bound then
+         return (Fits => False, Value => 0);
+      end if;
+      return (Fits => True, Value => Long_Long_Integer (Product));
+   end Scaled_Float;
+
+   --  A knob read at a scale: Read is meaningful only for a number.
+   type Scaled_Knob is record
+      Is_Number : Boolean := False;
+      Read      : Decimals.Scaled_Read;
+   end record;
+
+   --  V at Scale, when V is a number Get_Scaled takes: an integer, a
+   --  regular float, or a quoted plain decimal.
+   function Scaled_Knob_Of
+     (V : TOML.TOML_Value; Scale : Positive) return Scaled_Knob is
+   begin
+      case TOML.Kind (V) is
+         when TOML.TOML_Integer =>
+            return
+              (True,
+               Decimals.Scaled
+                 (Long_Long_Integer (TOML.As_Integer (V)), Scale));
+
+         when TOML.TOML_Float   =>
+            if TOML.As_Float (V).Kind = TOML.Regular then
+               return (True, Scaled_Float (TOML.As_Float (V).Value, Scale));
+            end if;
+
+         when TOML.TOML_String  =>
+            if Decimals.Is_Plain_Decimal (TOML.As_String (V)) then
+               return (True, Decimals.Scaled (TOML.As_String (V), Scale));
+            end if;
+
+         when others            =>
+            null;
+      end case;
+      return (Is_Number => False, Read => <>);
+   end Scaled_Knob_Of;
+
+   function Get_Scaled
+     (T : Table; Key : String; Scale : Positive; Fallback : Long_Long_Integer)
+      return Long_Long_Integer
+   is
+      V : constant TOML.TOML_Value := Lookup (T, Key);
+      K : Scaled_Knob;
+   begin
+      if TOML.Is_Null (V) then
+         return Fallback;
+      end if;
+      K := Scaled_Knob_Of (V, Scale);
+      if not K.Is_Number then
+         Complain (T, Key & Not_A_Number);
+      elsif not K.Read.Fits then
+         Complain
+           (T,
+            Key
+            & " is out of range at a scale of"
+            & Scale'Image
+            & "; using default");
+      else
+         return K.Read.Value;
+      end if;
+      return Fallback;
+   end Get_Scaled;
 
    procedure Each_String
      (T       : Table;

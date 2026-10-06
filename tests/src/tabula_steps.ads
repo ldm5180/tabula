@@ -33,6 +33,7 @@ package Tabula_Steps is
       E_Read_String,
       E_Read_Required,
       E_Read_Real,
+      E_Read_Scaled,
       E_Ask_Has,
       E_Check_Reading,
       E_Check_Text,
@@ -53,7 +54,7 @@ package Tabula_Steps is
 
    --  What a getter returned, by the getter's type, or what Has said;
    --  None before a read.
-   type Reading_Kind is (None, Bool, Count, Text, Real, Presence);
+   type Reading_Kind is (None, Bool, Count, Text, Real, Scaled, Presence);
 
    type Reading (Kind : Reading_Kind := None) is record
       case Kind is
@@ -71,6 +72,9 @@ package Tabula_Steps is
 
          when Real =>
             Value : Long_Float := 0.0;
+
+         when Scaled =>
+            Units : Long_Long_Integer := 0;
 
          when Presence =>
             Present : Boolean := False;
@@ -143,6 +147,8 @@ package Tabula_Steps is
       Step ("the non-empty string {word} is read with default {string}")
                                                                 >= E_Read_Required,
       Step ("the real {word} is read with default {word}")      >= E_Read_Real,
+      Step ("the number {word} is read at a scale of {int} with default {int}")
+                                                                >= E_Read_Scaled,
       Step ("{word} is asked for")                              >= E_Ask_Has,
       Step ("the reading is the default")                       >= E_Check_Default,
       Step ("the reading is the text {string}")                 >= E_Check_Text,

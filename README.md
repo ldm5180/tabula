@@ -14,7 +14,9 @@ never crash it.
   [ada_toml](https://github.com/pmderodat/ada-toml): `Load` (file, with
   distinct `Missing` / `Malformed` outcomes) or `Parse` (in-memory),
   `Section`, overloaded `Get` for Boolean / Natural (with a `Min` guard) /
-  String (with `Require_Non_Empty`) / Long_Float, `Each_String` for
+  String (with `Require_Non_Empty`) / Long_Float, `Get_Scaled` for a
+  number as a whole count of a scale's units (no floating point needed:
+  0.2621 at a scale of a million is 262100), `Each_String` for
   string arrays, `Each_Section` for arrays of tables, and `Each_Key` for
   the keys a table holds, in the file's order. Every table carries a label and a `Warner` callback, so
   complaints read like `feed config: retries is not a number in 1 ..
@@ -24,7 +26,8 @@ never crash it.
   fraction, dropping leading zeros (`0.02` loads as `0.2`!), so
   decimal-shaped knobs are quotable: `bump = "0.02"` converts exactly, and
   the proven `Is_Plain_Decimal` keeps `'Value` exotica (exponents, based
-  literals) out.
+  literals) out.  The proven `Scaled` takes a decimal's digits to a
+  scaled integer, rounded half away from zero, with no float formed.
 
 ## Use it
 
