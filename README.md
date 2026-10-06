@@ -31,6 +31,18 @@ never crash it.
   literals) out.  The proven `Scaled` takes a decimal's digits to a
   scaled integer, rounded half away from zero, with no float formed.
 
+- **`Tabula.Emit`** — a TOML document written in order: comments,
+  `[tables]`, `[[arrays of tables]]`, and keys (`Text`, `Number` from
+  decimal text, `Flag`, `Count`, `Strings`, `Numbers`, `Date`, `Time`).
+  What cannot be written is refused, never raised: the first refusal
+  names its key, and a document that refused anything is not saved.
+  `Save` writes beside the path and renames, so the file in place is
+  the old one or the whole new one.  What it writes reads back through
+  `Tabula.Config` to the values written.
+- **`Tabula.Toml_Text`** — the proven text of TOML scalars, both ways:
+  keys bare or quoted, basic strings with their escapes, the decimal
+  text a writer may pass unquoted, dates and times.
+
 ## Use it
 
 Add the dependency (via a git pin until it is in the community index):

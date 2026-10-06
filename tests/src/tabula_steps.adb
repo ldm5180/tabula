@@ -2,6 +2,7 @@ with Fabula.Check.Ints;
 with Fabula.Numbers;
 
 with Tabula_Steps.Configs;
+with Tabula_Steps.Emits;
 with Tabula_Steps.Knobs;
 with Tabula_Steps.Walks;
 with Tabula_World;
@@ -55,12 +56,14 @@ package body Tabula_Steps is
    Config_Name : aliased constant String := "config";
    Knobs_Name  : aliased constant String := "knobs";
    Walks_Name  : aliased constant String := "walks";
+   Emits_Name  : aliased constant String := "emits";
 
    --!format off
    Regions : constant array (Positive range <>) of Region :=
      [(Config_Name'Access, Configs.Offer'Access, Configs.Reset'Access, Configs.Phase'Access),
       (Knobs_Name'Access,  Knobs.Offer'Access,   Knobs.Reset'Access,   Knobs.Phase'Access),
-      (Walks_Name'Access,  Walks.Offer'Access,   Walks.Reset'Access,   Walks.Phase'Access)];
+      (Walks_Name'Access,  Walks.Offer'Access,   Walks.Reset'Access,   Walks.Phase'Access),
+      (Emits_Name'Access,  Emits.Offer'Access,   Emits.Reset'Access,   Emits.Phase'Access)];
    --!format on
 
    --  Every region's state, for the step no region would take.
@@ -111,6 +114,7 @@ package body Tabula_Steps is
          G.Reset.all;
       end loop;
       Tabula_World.Reset;
+      Tabula_World.Clear_Scratch (Tabula_World.Saved_Name);
    end Run_Hook;
 
 end Tabula_Steps;

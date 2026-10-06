@@ -55,4 +55,25 @@ package Tabula_World is
    --  Every recorded warning, for a failure to show.
    function Warnings_Text return String;
 
+   --  The scratch file Name: where a test writes, under the tests'
+   --  object directory, which this creates when it is not there.  No
+   --  file is made.
+   function Scratch (Name : String) return String;
+
+   --  Delete the scratch file Name, and its staging file, if there.
+   procedure Clear_Scratch (Name : String);
+
+   --  The scratch file a scenario saves the document it writes to,
+   --  cleared before each scenario.
+   Saved_Name : constant String := "feature-document.toml";
+
+   --  Where Saved_Name is.
+   function Saved_Document return String;
+
+   --  Whether Text begins with Head.
+   function Begins_With (Text, Head : String) return Boolean;
+
+   --  The whole of the file at Path, or "" when there is none.
+   function Contents (Path : String) return String;
+
 end Tabula_World;

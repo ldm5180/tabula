@@ -38,12 +38,16 @@ never crash it — no getter raises.
 - `src/app/`  — the ada_toml adapter (`Tabula.Config`): all ada_toml
   specifics stay behind this one unit; parser refusals become a
   `Malformed` status at this boundary and never escape as exceptions.
+  The writer (`Tabula.Emit`) builds on the core's text functions and
+  `Tabula.Staged_Files` (write beside, rename into place);
+  `Tabula.Text_Lists` is the list of texts the writers take.
 - `tests/` — AUnit suite (`test_tabula.gpr`, driver `test_runner.adb`)
   and the Gherkin features: `tests/features/*.feature`, run by
   `tabula_features.ads` (`Fabula.Main` over `Tabula_Steps`).  The steps
   are events of sml machines, one region per thing a step acts on --
   `Tabula_Steps.Configs` (where the table comes from), `.Knobs` (what
-  is read from it), `.Walks` (the array and key walkers) -- each a child with
+  is read from it), `.Walks` (the array and key walkers), `.Emits` (a
+  document written and saved) -- each a child with
   its own transition table, over the `Tabula_Steps.Flows` runner; a
   step no region takes fails naming every region's state.
   `Tabula_World` is the recording warner, the parse and the load the
