@@ -1,12 +1,13 @@
 with "config/tabula_config.gpr";
 with "ada_toml";
+with "sml";
 
---  Tabula: narrow TOML reading for configuration files.  src/core holds
---  the SPARK-proven decimal shape check (pure, zero IO, no dependencies
---  beyond other core units); src/app holds the ada_toml adapter (typed
---  knob getters with fallbacks; absence is silent, a present-but-wrong
---  value warns through the caller's handler and falls back).
---  proof/proof.gpr sources src/core directly and withs nothing, keeping
+--  Tabula: tables in and out -- TOML read and written, CSV read and
+--  written.  src/core holds the SPARK-proven pure units (decimal shape
+--  and scale, the text of TOML scalars, the CSV scanner, an sml machine);
+--  src/app holds the IO: the ada_toml adapter (typed knob getters with
+--  fallbacks), the TOML writer and the CSV reader and writer.
+--  proof/proof.gpr sources src/core directly and withs only sml, keeping
 --  foreign code out of the proof tree.
 project Tabula is
 

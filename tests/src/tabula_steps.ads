@@ -1,7 +1,10 @@
+with Ada.Containers.Vectors;
 with Ada.Strings.Unbounded;
 
 with Tabula.Config;
+with Tabula.Csv;
 with Tabula.Emit;
+with Tabula.Text_Lists;
 
 with Fabula.Args;
 with Fabula.Check;
@@ -65,6 +68,16 @@ package Tabula_Steps is
       E_Check_Saved,
       E_Check_Unsaved,
       E_Check_Refused,
+      E_Give_Csv,
+      E_Give_Missing_Csv,
+      E_Read_Rows,
+      E_Check_Rows_Read,
+      E_Check_Row_Count,
+      E_Check_By_Name,
+      E_Check_Row_Fields,
+      E_Check_Ragged,
+      E_Check_Malformed_At,
+      E_Check_Csv_Missing,
       --  Events no pattern names: a machine posts them to itself after
       --  an action whose result the next row's guard reads.
       E_Given);
@@ -109,11 +122,20 @@ package Tabula_Steps is
       end case;
    end record;
 
+   --  Rows of a CSV file as read: each row's fields in order.
+   package Row_Lists is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Tabula.Text_Lists.Vector,
+        "="          => Tabula.Text_Lists."=");
+
    --  What one scenario reads back.  fabula copies it per step, so it
    --  holds values only: the table in hand (a reference to the parsed
    --  document) and its label, what was read from it, and the default
-   --  the read was given, what a walk visited, and the document being
-   --  written and whether it saved.
+   --  the read was given, what a walk visited, the document being
+   --  written and whether it saved, and a CSV file's path and what
+   --  reading it came to: the header's names, and each row's fields by
+   --  position and, in the header's order, by name.
    type World is record
       Root    : Tabula.Config.Table;
       Label   : Unbounded_String;
@@ -124,6 +146,11 @@ package Tabula_Steps is
       Items   : Unbounded_String;
       Doc     : Tabula.Emit.Document;
       Saved   : Boolean := False;
+      Csv     : Unbounded_String;
+      Outcome : Tabula.Csv.Outcome;
+      Columns : Tabula.Text_Lists.Vector;
+      Fields  : Row_Lists.Vector;
+      Named   : Row_Lists.Vector;
    end record;
 
    --  One step as a machine sees it: the scenario, the step's arguments,
@@ -212,7 +239,17 @@ package Tabula_Steps is
       Step ("the document is saved")                            >= E_Save_Document,
       Step ("it was saved")                                     >= E_Check_Saved,
       Step ("it was not saved")                                 >= E_Check_Unsaved,
-      Step ("the document refused {word}")                      >= E_Check_Refused];
+      Step ("the document refused {word}")                      >= E_Check_Refused,
+      Step ("a CSV file:")                                      >= E_Give_Csv,
+      Step ("a CSV file that does not exist")                   >= E_Give_Missing_Csv,
+      Step ("its rows are read")                                >= E_Read_Rows,
+      Step ("the rows read")                                    >= E_Check_Rows_Read,
+      Step ("{int} rows were read")                             >= E_Check_Row_Count,
+      Step ("the rows by column name are:")                     >= E_Check_By_Name,
+      Step ("the fields of row {int} are:")                     >= E_Check_Row_Fields,
+      Step ("the file is refused as ragged at line {int}")      >= E_Check_Ragged,
+      Step ("the file is refused as malformed at line {int}")   >= E_Check_Malformed_At,
+      Step ("the CSV file is missing")                          >= E_Check_Csv_Missing];
    --!format on
 
    Hook_Defs : constant Steps.Hook_Table := [Before >= Fresh_World];

@@ -73,6 +73,9 @@ package Tabula_World is
    --  Whether Text begins with Head.
    function Begins_With (Text, Head : String) return Boolean;
 
+   --  Make the file at Path hold exactly Text.
+   procedure Write_File (Path, Text : String);
+
    --  The whole of the file at Path, or "" when there is none.
    function Contents (Path : String) return String;
 

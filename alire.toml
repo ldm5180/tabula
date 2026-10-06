@@ -15,6 +15,7 @@ project-files = ["tabula.gpr"]
 ada_toml = "~0.5.0"
 aunit = "^26.0.0"
 fabula = "*"
+sml = "*"
 
 #  ada_toml: pinned one commit past the v0.5 tag, to upstream's fix for
 #  the fraction leading-zero bug (0.02 parsed as 0.2 -- PR #17); the
@@ -25,9 +26,11 @@ ada_toml = { url = "https://github.com/pmderodat/ada-toml.git", commit = "485b71
 
 #  fabula, the Gherkin runner the features under tests/features/ run on,
 #  is a TEST dependency and not in the community index either.  Pinned by
-#  commit; it brings its own sml pin, and should tabula ever pin sml
-#  itself the two must name one commit: alr refuses two links to one
-#  crate at different commits.
+#  commit; it brings its own sml pin.  The CSV scanner is an sml machine,
+#  so tabula depends on sml too, but takes fabula's pin rather than
+#  naming its own: should tabula ever pin sml itself the two must name
+#  one commit, since alr refuses two links to one crate at different
+#  commits.
 fabula = { url = "https://github.com/ldm5180/fabula.git", commit = "746a234df5581c2e38c4202aeee8b07473fb6a51" }
 
 [build-switches]
