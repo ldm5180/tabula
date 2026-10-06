@@ -1,11 +1,9 @@
---  Tabula: narrow TOML reading for configuration files -- typed knob
---  getters with fallbacks over the ada_toml parser (Tabula.Config) and a
---  SPARK-proven decimal shape check (Tabula.Decimals) gating the quoted
---  exact-decimal form.  Absence is silent (the caller's default stands);
---  a present-but-wrong value warns through the caller's handler and
---  falls back -- a config file can degrade a run, never crash it.  The
---  calendar values a TOML document holds are declared here, so the
---  reader and the text of a scalar share them.
+--  Tabula: tables in and out -- TOML read with typed getters that fall
+--  back and warn (Tabula.Config) and written in order (Tabula.Emit), and
+--  CSV read by rows and written (Tabula.Csv), over a SPARK-proven core.
+--  Text in, text out, and nothing raises: a config file can degrade a
+--  run, never crash it.  The calendar values a TOML document holds are
+--  declared here, so the reader and the writer share them.
 
 package Tabula
   with Pure, SPARK_Mode

@@ -5,6 +5,8 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with AUnit.Assertions; use AUnit.Assertions;
 
 with Tabula.Csv; use Tabula.Csv;
+with Tabula.Csv_Scan;
+with Tabula.Text_Lists;
 
 with Tabula_World; use Tabula_World;
 
@@ -143,6 +145,113 @@ package body Tabula_Csv_Tests is
          "every row whole across the blocks:" & Rows_Counted'Image);
    end Test_Blocks;
 
+   Written_Name : constant String := "written.csv";
+
+   --  Write a header and one row to Path; Ok as Close says.
+   procedure Write_Two
+     (Path   : String;
+      Header : Tabula.Text_Lists.Vector;
+      Fields : Tabula.Text_Lists.Vector;
+      Ok     : out Boolean)
+   is
+      W : Writer;
+   begin
+      Open (W, Path, Header);
+      Put (W, Fields);
+      Close (W, Ok);
+   end Write_Two;
+
+   --  A writer opened on Path and let go of without Close.
+   procedure Leave_Open (Path : String) is
+      W : Writer;
+   begin
+      Open (W, Path, ["x"]);
+      Put (W, ["one"]);
+   end Leave_Open;
+
+   --  A file written with every kind of field reads back the same, and
+   --  holds exactly the text the dialect gives it.
+   procedure Test_Write (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Path : constant String := Scratch (Written_Name);
+      W    : Writer;
+      Ok   : Boolean;
+      R    : Outcome;
+   begin
+      Clear_Scratch (Written_Name);
+      Open (W, Path, ["name", "note"]);
+      Put (W, ["plain", "x"]);
+      Put (W, ["comma", "a, b"]);
+      Put (W, ["quote", "say ""hi"""]);
+      Put (W, ["break", "one" & LF & "two"]);
+      Put (W, ["empty", ""]);
+      Assert (not Failed (W), "nothing refused");
+      Assert (Contents (Path) = "", "nothing lands before Close");
+      Close (W, Ok);
+      Assert (Ok, "the file is written");
+      Assert
+        (Contents (Path)
+         = "name,note"
+           & LF
+           & "plain,x"
+           & LF
+           & "comma,""a, b"""
+           & LF
+           & "quote,""say """"hi"""""""
+           & LF
+           & "break,""one"
+           & LF
+           & "two"""
+           & LF
+           & "empty,"
+           & LF,
+         "as the dialect writes it:" & LF & Contents (Path));
+
+      Seen := Null_Unbounded_String;
+      Each_Row (Path, Note'Access, R);
+      Assert (R = (Read, 0), "and it reads back");
+      Assert
+        (Seen_Text
+         = "2:name=plain,note=x;3:name=comma,note=a, b;"
+           & "4:name=quote,note=say ""hi"";"
+           & "5:name=break,note=one"
+           & LF
+           & "two;7:name=empty,note=;",
+         "the same: " & Seen_Text);
+   end Test_Write;
+
+   --  Every refusal leaves the old file and no new one: a row unlike the
+   --  header, a header of no columns, a record the reader could not
+   --  read back, a path in no directory, and a writer never closed.
+   procedure Test_Write_Refusals (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Path : constant String := Scratch (Written_Name);
+      Long : constant String (1 .. Tabula.Csv_Scan.Max_Record_Length) :=
+        [others => 'x'];
+      Ok   : Boolean;
+   begin
+      Clear_Scratch (Written_Name);
+      Write_File (Path, "old");
+      Write_Two (Path, ["x", "y"], ["one"], Ok);
+      Assert (not Ok and then Contents (Path) = "old", "a ragged row");
+      Write_Two (Path, [], [], Ok);
+      Assert (not Ok and then Contents (Path) = "old", "no columns");
+      Write_Two (Path, ["x"], [Long & "y"], Ok);
+      Assert (not Ok and then Contents (Path) = "old", "a record too long");
+      Write_Two (Path, ["x"], [Long], Ok);
+      Assert (Ok, "one as long as may be read is written");
+      Write_File (Path, "old");
+      Write_Two
+        (Ada.Directories.Containing_Directory (Path) & "/no-such-dir/x.csv",
+         ["x"],
+         ["one"],
+         Ok);
+      Assert (not Ok, "a path in no directory");
+      Leave_Open (Path);
+      Assert (Contents (Path) = "old", "a writer never closed writes nothing");
+   end Test_Write_Refusals;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -150,6 +259,9 @@ package body Tabula_Csv_Tests is
       Register_Routine (T, Test_Row'Access, "a row's fields every way");
       Register_Routine (T, Test_Outcomes'Access, "outcomes, with lines");
       Register_Routine (T, Test_Blocks'Access, "a file of many blocks");
+      Register_Routine (T, Test_Write'Access, "a file written reads back");
+      Register_Routine
+        (T, Test_Write_Refusals'Access, "what a writer refuses");
    end Register_Tests;
 
    overriding

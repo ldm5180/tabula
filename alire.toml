@@ -1,5 +1,5 @@
 name = "tabula"
-description = "Narrow TOML reading: typed knobs with fallbacks over ada_toml"
+description = "Tables in and out: TOML and CSV, read and written, over a proven core"
 version = "0.1.0"
 
 authors = ["Lenny Maiorani"]
@@ -7,7 +7,7 @@ maintainers = ["Lenny Maiorani <639247+ldm5180@users.noreply.github.com>"]
 maintainers-logins = ["ldm5180"]
 licenses = "MIT"
 website = "https://github.com/ldm5180/tabula"
-tags = ["toml", "config", "parser", "spark"]
+tags = ["toml", "csv", "config", "parser", "spark"]
 
 project-files = ["tabula.gpr"]
 

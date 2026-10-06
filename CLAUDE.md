@@ -1,15 +1,28 @@
 # tabula
 
-Narrow TOML reading for Ada 2022 — typed knob getters with fallbacks over
-ada_toml (`Tabula.Config`) and a SPARK-proven decimal shape check
-(`Tabula.Decimals`) gating the quoted exact-decimal form, packaged as a
-reusable, independently proven crate.
+Tables in and out for Ada 2022: TOML read (typed knob getters with
+fallbacks over ada_toml, `Tabula.Config`) and written (`Tabula.Emit`),
+and CSV read and written (`Tabula.Csv`), over a SPARK-proven core --
+the decimal shape and scale (`Tabula.Decimals`), the text of TOML
+scalars (`Tabula.Toml_Text`) and the CSV scanner (`Tabula.Csv_Scan`) --
+packaged as a reusable, independently proven crate.
 
-The policy is the product: an ABSENT knob silently keeps the caller's
-fallback (a config file states only what it changes); a PRESENT but
-wrong-typed, out-of-range, or empty-when-required knob keeps the fallback
-AND warns through the table's `Warner`. A config file can degrade a run,
-never crash it — no getter raises.
+Two rules hold for every addition:
+
+- **Text in, text out.**  The CSV reader hands fields over as text and
+  the writers take text.  A consumer that wants exact decimals parses
+  and prints them itself; tabula forms no number on the way.  The one
+  float the crate touches is a TOML float, and `Get_Scaled` lets it
+  leave at once as an integer.
+- **The reading policy stands, and nothing raises.**  An ABSENT knob
+  silently keeps the caller's fallback (a config file states only what
+  it changes); a PRESENT but wrong-typed, out-of-range, or
+  empty-when-required knob keeps the fallback AND warns through the
+  table's `Warner`.  A config file can degrade a run, never crash it.  A
+  writer refuses what it cannot write and lands nothing; the CSV reader
+  reports a refused file as an outcome with its line.  Do not guess a
+  CSV dialect, and do not hold a whole CSV file in memory to read or
+  write it.
 
 ## Commands
 
@@ -24,8 +37,12 @@ never crash it — no getter raises.
   (`tools/features-report`, node) into `obj/features-report/html`.  CI
   keeps it with every run and publishes it from main to
   https://ldm5180.github.io/tabula/
-- `make prove`   — SPARK proof, `--checks-as-errors=on`; must exit 0
+- `make prove`   — SPARK proof, `--checks-as-errors=on`; must exit 0;
+  a new core unit is withed by `proof/src/core_closure_proof.ads`
 - `make format`  — `gnatformat --check` over all committed Ada sources
+  (it reads `git ls-files`: stage a new file first).  gnatformat's
+  lexer refuses a container aggregate opening on a short hex-digit
+  string (`["a"]`, `["1"]`) as a bad brackets encoding
 - `make example` / `make run` — build / run the demo main (pure, so CI
   runs it)
 - `alr --non-interactive build --validation` — warnings-as-errors gate (CI)
@@ -129,3 +146,18 @@ never crash it — no getter raises.
 - `Load` distinguishes `Missing` (no file — callers usually keep defaults
   and log at most an info line) from `Malformed` (parser refusal, with its
   message); both leave the empty table, whose every getter falls back.
+- fructus, arb-ada and firescan-ada read through the getters: never
+  change what an existing getter returns or warns.
+
+## Writing and CSV contracts (do not break)
+
+- What `Tabula.Emit` writes, `Tabula.Config` reads back to the same
+  values; a number is written only when `Is_Number_Text` says it reads
+  back as written.  A document that refused anything is not saved, and
+  `Save` and the CSV `Close` land a file whole by a rename, or not at
+  all.
+- What the CSV `Writer` writes, `Each_Row` reads back the same; the
+  writer refuses a record past the scanner's bounds rather than write
+  one the reader would refuse.
+- The scanner's record is bounded (`Max_Record_Length`, `Max_Fields`);
+  a record past a bound is refused, never cut.
