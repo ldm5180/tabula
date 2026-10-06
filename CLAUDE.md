@@ -32,8 +32,9 @@ never crash it — no getter raises.
 
 ## Layout
 
-- `src/core/` — the SPARK core (`Tabula.Decimals`): every unit carries
-  `SPARK_Mode`, does zero IO, and may `with` only other core units.
+- `src/core/` — the SPARK core (`Tabula.Decimals`, `Tabula.Toml_Text`,
+  and the root's calendar types): every unit carries `SPARK_Mode`, does
+  zero IO, and may `with` only other core units.
 - `src/app/`  — the ada_toml adapter (`Tabula.Config`): all ada_toml
   specifics stay behind this one unit; parser refusals become a
   `Malformed` status at this boundary and never escape as exceptions.

@@ -9,6 +9,8 @@ with Tabula_World; use Tabula_World;
 package body Tabula_Config_Tests is
 
    use AUnit.Test_Cases.Registration;
+   use type Tabula.Date;
+   use type Tabula.Time_Of_Day;
 
    procedure Parse_Sample (Content : String; Root : out Table) is
       Status : Load_Status;
@@ -322,6 +324,78 @@ package body Tabula_Config_Tests is
       Assert (Warned ("fancy is not a number"), "is not a number");
    end Test_Scaled_Range;
 
+   --  A sample of every shape a date or time knob may take.
+   Dates_Sample : constant String :=
+     "bare = 2020-01-01"
+     & ASCII.LF
+     & "quoted = ""2024-02-29"""
+     & ASCII.LF
+     & "unreal = 2021-02-29"
+     & ASCII.LF
+     & "unreal_text = ""2021-02-29"""
+     & ASCII.LF
+     & "stamp = 2020-01-01T09:30:00"
+     & ASCII.LF
+     & "clock = 09:30:00"
+     & ASCII.LF
+     & "clock_text = ""16:15:00"""
+     & ASCII.LF
+     & "fine = 09:30:00.250"
+     & ASCII.LF
+     & "count = 3";
+
+   Some_Day  : constant Tabula.Date := (1999, 12, 31);
+   Some_Time : constant Tabula.Time_Of_Day := (12, 0, 0);
+
+   --  A bare or quoted date reads; one the calendar lacks, a datetime and
+   --  a non-date warn and fall back; absence is silent.
+   procedure Test_Dates (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample (Dates_Sample, Root);
+      Assert (Get (Root, "bare", Some_Day) = (2020, 1, 1), "a bare date");
+      Assert (Get (Root, "quoted", Some_Day) = (2024, 2, 29), "a quoted one");
+      Assert (Get (Root, "absent", Some_Day) = Some_Day, "absent: default");
+      Assert (Silent, "silently");
+
+      Assert (Get (Root, "unreal", Some_Day) = Some_Day, "no such day");
+      Assert
+        (Warned ("test config: unreal is not a date; using default"),
+         "warns as not a date");
+      Assert (Get (Root, "unreal_text", Some_Day) = Some_Day, "nor quoted");
+      Assert (Warned ("unreal_text is not a date"), "warns");
+      Assert (Get (Root, "stamp", Some_Day) = Some_Day, "a datetime");
+      Assert (Warned ("stamp is not a date"), "is not a date");
+      Assert (Get (Root, "count", Some_Day) = Some_Day, "an integer");
+      Assert (Warned ("count is not a date"), "is not a date");
+   end Test_Dates;
+
+   --  A bare or quoted time reads; a fraction of a second, a date and a
+   --  non-time warn and fall back; absence is silent.
+   procedure Test_Times (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample (Dates_Sample, Root);
+      Assert (Get (Root, "clock", Some_Time) = (9, 30, 0), "a bare time");
+      Assert
+        (Get (Root, "clock_text", Some_Time) = (16, 15, 0), "a quoted one");
+      Assert (Get (Root, "absent", Some_Time) = Some_Time, "absent");
+      Assert (Silent, "silently");
+
+      Assert (Get (Root, "fine", Some_Time) = Some_Time, "a fraction");
+      Assert
+        (Warned
+           ("test config: fine is not a time to the second;"
+            & " using default"),
+         "warns that it is finer than a second");
+      Assert (Get (Root, "bare", Some_Time) = Some_Time, "a date");
+      Assert (Warned ("bare is not a time;"), "is not a time");
+      Assert (Get (Root, "unreal_text", Some_Time) = Some_Time, "a string");
+      Assert (Warned ("unreal_text is not a time;"), "is not a time");
+   end Test_Times;
+
    --  What Each_Key visited, comma-separated, for Test_Each_Key.
    Keys_Seen : Unbounded_String;
 
@@ -397,6 +471,8 @@ package body Tabula_Config_Tests is
       Register_Routine (T, Test_Has'Access, "presence check, no fallback");
       Register_Routine (T, Test_Each_Key'Access, "keys in file order");
       Register_Routine (T, Test_Scaled'Access, "a number at a scale");
+      Register_Routine (T, Test_Dates'Access, "a date, bare or quoted");
+      Register_Routine (T, Test_Times'Access, "a time, bare or quoted");
       Register_Routine
         (T, Test_Scaled_Range'Access, "a scaled number that does not fit");
    end Register_Tests;
