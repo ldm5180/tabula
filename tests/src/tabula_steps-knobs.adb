@@ -116,18 +116,8 @@ package body Tabula_Steps.Knobs is
          when Text     => '"' & To_String (R.Words) & '"',
          when Real     => Fabula.Check.Real_Image (R.Value),
          when Scaled   => Fabula.Check.Long_Image (R.Units),
-         when Day      =>
-           Fabula.Check.Integer_Image (R.On.Year)
-           & "-"
-           & Fabula.Check.Integer_Image (R.On.Month)
-           & "-"
-           & Fabula.Check.Integer_Image (R.On.Day),
-         when Clock    =>
-           Fabula.Check.Integer_Image (R.At_Time.Hour)
-           & ":"
-           & Fabula.Check.Integer_Image (R.At_Time.Minute)
-           & ":"
-           & Fabula.Check.Integer_Image (R.At_Time.Second),
+         when Day      => Tabula.Toml_Text.Date_Text (R.On),
+         when Clock    => Tabula.Toml_Text.Time_Text (R.At_Time),
          when Presence => (if R.Present then "present" else "absent"));
 
    --  A decimal as a feature writes it: the text the crate's own gate

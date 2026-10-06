@@ -1,3 +1,5 @@
+with Tabula.Decimals;
+
 package body Tabula.Toml_Text
   with SPARK_Mode
 is
@@ -144,5 +146,160 @@ is
       end if;
       return (Ok => True, Value => (P.First, P.Second, P.Third));
    end Time_Of;
+
+   --  The digits of N, Width of them, zeros leading.
+   function Padded (N : Natural; Width : Field_Width) return String
+   with
+     Pre  => N < Powers (Width),
+     Post => Padded'Result'First = 1 and then Padded'Result'Length = Width
+   is
+      Result : String (1 .. Width);
+      Rest   : Natural := N;
+   begin
+      for I in reverse Result'Range loop
+         Result (I) := Character'Val (Character'Pos ('0') + Rest mod 10);
+         Rest := Rest / 10;
+      end loop;
+      return Result;
+   end Padded;
+
+   function Date_Text (D : Date) return String
+   is (Padded (D.Year, Max_Width)
+       & Date_Layout.Mark
+       & Padded (D.Month, Pair)
+       & Date_Layout.Mark
+       & Padded (D.Day, Pair));
+
+   function Time_Text (T : Time_Of_Day) return String
+   is (Padded (T.Hour, Pair)
+       & Time_Layout.Mark
+       & Padded (T.Minute, Pair)
+       & Time_Layout.Mark
+       & Padded (T.Second, Pair));
+
+   ---------------------------------------------------------------------
+   --  Strings and keys.
+   ---------------------------------------------------------------------
+
+   Quote       : constant Character := '"';
+   Escape_Mark : constant Character := '\';
+
+   --  What Named_Escape answers for a character with no named escape.
+   No_Name : constant Character := ASCII.NUL;
+
+   --  The letter after the backslash that writes C, or No_Name.
+   function Named_Escape (C : Character) return Character
+   is (case C is
+         when ASCII.BS    => 'b',
+         when ASCII.HT    => 't',
+         when ASCII.LF    => 'n',
+         when ASCII.FF    => 'f',
+         when ASCII.CR    => 'r',
+         when Quote       => Quote,
+         when Escape_Mark => Escape_Mark,
+         when others      => No_Name);
+
+   --  A control TOML lets into a basic string only as \uXXXX.
+   function Needs_Number (C : Character) return Boolean
+   is (C in ASCII.NUL .. ASCII.US | ASCII.DEL
+       and then Named_Escape (C) = No_Name);
+
+   Hex : constant String (1 .. 16) := "0123456789ABCDEF";
+
+   --  How many values one hex digit holds.
+   Hex_Base : constant := 16;
+
+   --  C as \u00XX: Needs_Number has said it is below Hex_Base squared.
+   function Numbered (C : Character) return String
+   is (Escape_Mark
+       & "u00"
+       & Hex (Character'Pos (C) / Hex_Base + 1)
+       & Hex (Character'Pos (C) mod Hex_Base + 1))
+   with Pre => Needs_Number (C);
+
+   --  C as it is written inside a basic string.
+   function Escaped (C : Character) return String
+   is (if Named_Escape (C) /= No_Name
+       then [Escape_Mark, Named_Escape (C)]
+       elsif Needs_Number (C)
+       then Numbered (C)
+       else [C])
+   with Post => Escaped'Result'Length in 1 .. Max_Escape;
+
+   function String_Text (Text : String) return String is
+      Buffer : String (1 .. Max_Escape * Text'Length + 2) := [others => Quote];
+      Last   : Positive := 1;
+   begin
+      for I in Text'Range loop
+         pragma
+           Loop_Invariant
+             (Last in I - Text'First + 1 .. Max_Escape * (I - Text'First) + 1);
+         declare
+            E : constant String := Escaped (Text (I));
+         begin
+            Buffer (Last + 1 .. Last + E'Length) := E;
+            Last := Last + E'Length;
+         end;
+      end loop;
+      Last := Last + 1;
+      Buffer (Last) := Quote;
+      return Buffer (1 .. Last);
+   end String_Text;
+
+   function Is_Bare_Key_Character (C : Character) return Boolean
+   is (C in 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '-');
+
+   function Key_Text (Key : String) return String
+   is (if Key'Length > 0
+         and then (for all C of Key => Is_Bare_Key_Character (C))
+       then Key
+       else String_Text (Key));
+
+   ---------------------------------------------------------------------
+   --  Numbers.
+   ---------------------------------------------------------------------
+
+   function Has_Point (Text : String) return Boolean
+   is (for some C of Text => C = '.');
+
+   --  Whether Text's integer part opens with a zero another digit
+   --  follows: 007 and 00.5, which TOML forbids.
+   function Leads_With_Zero (Text : String) return Boolean is
+      First : Positive;
+   begin
+      if Text'Length < 2 then
+         return False;
+      end if;
+      First :=
+        (if Text (Text'First) in '+' | '-'
+         then Text'First + 1
+         else Text'First);
+      return
+        First < Text'Last
+        and then Text (First) = '0'
+        and then Text (First + 1) in '0' .. '9';
+   end Leads_With_Zero;
+
+   --  How many digits Text holds from its first non-zero one on.
+   function Significant_Digits (Text : String) return Natural is
+      Count   : Natural := 0;
+      Started : Boolean := False;
+   begin
+      for I in Text'Range loop
+         pragma Loop_Invariant (Count <= I - Text'First);
+         Started := Started or else Text (I) in '1' .. '9';
+         if Started and then Text (I) in '0' .. '9' then
+            Count := Count + 1;
+         end if;
+      end loop;
+      return Count;
+   end Significant_Digits;
+
+   function Is_Number_Text (Text : String) return Boolean
+   is (Decimals.Is_Plain_Decimal (Text)
+       and then not Leads_With_Zero (Text)
+       and then (if Has_Point (Text)
+                 then Significant_Digits (Text) <= Max_Float_Digits
+                 else Decimals.Scaled (Text, 1).Fits));
 
 end Tabula.Toml_Text;
