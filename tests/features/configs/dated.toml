@@ -1,0 +1,3 @@
+# A config whose last value, a date, has no line end after it.
+retries = 12
+start = 2020-01-01
