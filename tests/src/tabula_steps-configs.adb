@@ -14,7 +14,13 @@ package body Tabula_Steps.Configs is
    type State is (Unparsed, Given, Parsed, Refused);
 
    type Guard_Kind is
-     (Always, Doc_Given, File_Named, Document_Saved, Loaded, Listening);
+     (Always,
+      Doc_Given,
+      File_Named,
+      Document_Saved,
+      Loaded,
+      Listening,
+      Place_Read);
 
    type Action_Kind is
      (A_Nothing,
@@ -32,6 +38,8 @@ package body Tabula_Steps.Configs is
       --  Checking it.
       A_Check_Loaded,
       A_Check_Malformed,
+      A_Check_Refused_At,
+      A_Refuse_Place,
       A_Check_Missing,
       A_Check_Silent,
       A_Check_Warned,
@@ -47,6 +55,8 @@ package body Tabula_Steps.Configs is
    File_Capture  : constant := 2;
    Key_Capture   : constant := 1;
    Name_Capture  : constant := 1;
+   Line_Capture  : constant := 1;
+   Place_Column  : constant := 2;
 
    --  The config no configs directory holds.
    Absent_Name : constant String := "does-not-exist";
@@ -74,7 +84,10 @@ package body Tabula_Steps.Configs is
            when Document_Saved =>
              Ada.Directories.Exists (Tabula_World.Saved_Document),
            when Loaded         => Ctx.W.Status = Tabula.Config.Loaded,
-           when Listening      => Ctx.W.Heard /= null);
+           when Listening      => Ctx.W.Heard /= null,
+           when Place_Read     =>
+             Count_Read (Ctx, Line_Capture)
+             and then Count_Read (Ctx, Place_Column));
    end Evaluate;
 
    ---------------------------------------------------------------------
@@ -213,6 +226,34 @@ package body Tabula_Steps.Configs is
          & Tabula_World.Warnings_Text (Ctx.W.Heard.all));
    end Find_Heard;
 
+   --  The place a step names, LINE:COLUMN, as the parser writes it.
+   function Place (Ctx : Step_Context) return String
+   with
+     Pre =>
+       Count_Read (Ctx, Line_Capture) and then Count_Read (Ctx, Place_Column)
+   is
+      Line   : constant String := Count (Ctx, Line_Capture)'Image;
+      Column : constant String := Count (Ctx, Place_Column)'Image;
+   begin
+      return Line (2 .. Line'Last) & ":" & Column (2 .. Column'Last);
+   end Place;
+
+   --  Whether the config was refused at the step's place: malformed,
+   --  its message the place and then the parser's words.
+   procedure Expect_Place (Ctx : in out Step_Context)
+   with
+     Pre =>
+       Count_Read (Ctx, Line_Capture) and then Count_Read (Ctx, Place_Column)
+   is
+   begin
+      Expect_Status (Ctx, Tabula.Config.Malformed);
+      Fabula.Check.Is_True
+        (Ctx.R,
+         Tabula_World.Begins_With
+           (To_String (Ctx.W.Error), Place (Ctx) & ": "),
+         "refused with: " & To_String (Ctx.W.Error));
+   end Expect_Place;
+
    procedure Execute_Check (A : Check_Action; Ctx : in out Step_Context) is
    begin
       case A is
@@ -223,6 +264,16 @@ package body Tabula_Steps.Configs is
             Expect_Status (Ctx, Tabula.Config.Malformed);
             Fabula.Check.Is_True
               (Ctx.R, Length (Ctx.W.Error) > 0, "the parser said nothing");
+
+         when A_Check_Refused_At    =>
+            Expect_Place (Ctx);
+
+         when A_Refuse_Place        =>
+            Refuse_Count
+              (Ctx,
+               (if Count_Read (Ctx, Line_Capture)
+                then Place_Column
+                else Line_Capture));
 
          when A_Check_Missing       =>
             Expect_Status (Ctx, Tabula.Config.Missing);
@@ -291,6 +342,7 @@ package body Tabula_Steps.Configs is
    Take_Section        : constant Ev := (Kind => E_Take_Section);
    Check_Loaded        : constant Ev := (Kind => E_Check_Loaded);
    Check_Malformed     : constant Ev := (Kind => E_Check_Malformed);
+   Check_Refused_At    : constant Ev := (Kind => E_Check_Refused_At);
    Check_Missing       : constant Ev := (Kind => E_Check_Missing);
    Check_Silent        : constant Ev := (Kind => E_Check_Silent);
    Check_Warned        : constant Ev := (Kind => E_Check_Warned);
@@ -316,6 +368,8 @@ package body Tabula_Steps.Configs is
 
       Parsed   + Check_Loaded                         / A_Check_Loaded        >= Parsed,
       Parsed   + Check_Malformed                      / A_Check_Malformed     >= Parsed,
+      Parsed   + Check_Refused_At    (Place_Read)     / A_Check_Refused_At    >= Parsed,
+      Parsed   + Check_Refused_At                     / A_Refuse_Place        >= Parsed,
       Parsed   + Check_Missing                        / A_Check_Missing       >= Parsed,
       Parsed   + Check_Silent                         / A_Check_Silent        >= Parsed,
       Parsed   + Check_Warned                         / A_Check_Warned        >= Parsed,
@@ -325,6 +379,8 @@ package body Tabula_Steps.Configs is
       Parsed   + Check_Heard_Nothing                  / A_Refuse_Unheard      >= Parsed,
       Refused  + Check_Loaded                         / A_Check_Loaded        >= Refused,
       Refused  + Check_Malformed                      / A_Check_Malformed     >= Refused,
+      Refused  + Check_Refused_At    (Place_Read)     / A_Check_Refused_At    >= Refused,
+      Refused  + Check_Refused_At                     / A_Refuse_Place        >= Refused,
       Refused  + Check_Missing                        / A_Check_Missing       >= Refused,
       Refused  + Check_Silent                         / A_Check_Silent        >= Refused,
       Refused  + Check_Warned                         / A_Check_Warned        >= Refused];

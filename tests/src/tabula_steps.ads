@@ -31,6 +31,7 @@ package Tabula_Steps is
       E_Load_Saved,
       E_Check_Loaded,
       E_Check_Malformed,
+      E_Check_Refused_At,
       E_Check_Missing,
       E_Take_Section,
       E_Check_Silent,
@@ -221,6 +222,8 @@ package Tabula_Steps is
                                                                 >= E_Load_Saved,
       Step ("the config loaded")                                >= E_Check_Loaded,
       Step ("the config is malformed")                          >= E_Check_Malformed,
+      Step ("the config is malformed at line {int}, column {int}")
+                                                                >= E_Check_Refused_At,
       Step ("the config is missing")                            >= E_Check_Missing,
       Step ("the section {word}")                               >= E_Take_Section,
       Step ("nothing was warned")                               >= E_Check_Silent,

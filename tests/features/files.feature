@@ -2,9 +2,10 @@ Feature: A config file is loaded, missing, or malformed -- never a crash
 
   A config on disk loads into a table.  A file that is not there is
   reported missing, and one the parser refuses is reported malformed
-  with the parser's message; either way the table in hand is empty, so
-  every knob read from it keeps its default.  Neither raises.  A config
-  may end with a line end or not, whatever its last value is.
+  with the parser's message, which names the line and column it
+  stopped at; either way the table in hand is empty, so every knob
+  read from it keeps its default.  Neither raises.  A config may end
+  with a line end or not, whatever its last value is.
 
   Scenario: A file loads
     Given a config labelled "feed config" from the file feed
@@ -23,6 +24,10 @@ Feature: A config file is loaded, missing, or malformed -- never a crash
     Then the config is malformed
     When the count not is read with default 3
     Then the reading is the default
+
+  Scenario: A broken file is refused at the line and column the parser stopped
+    Given a config labelled "feed config" from the file broken
+    Then the config is malformed at line 1, column 6
 
   Scenario: A file that ends with a date and no line end loads
     Given a config labelled "feed config" from the file dated
