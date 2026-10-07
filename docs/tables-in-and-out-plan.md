@@ -4,7 +4,8 @@
 commit per cycle; every gate passes (suite, features, format,
 validation, proof).  What differs from the plan below is in the
 revision notes.  B8, a list of numbers at a scale, was added after
-B7 at the user's decision and is built.
+B7 at the user's decision and is built.  B9, callbacks that carry the
+caller's state, was added after B8 on `context-callbacks`.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -221,6 +222,43 @@ procedure Each_Row
   15000000, 21000 and 262100.  The step is undefined, and
   `Tabula_Config_Tests` fails to compile on `Each_Scaled`.
 
+### B9 -- Callbacks that carry the caller's state
+
+- **Where:** `src/app/tabula-config.ads`, the `Warner` the table
+  carries and the walkers `Each_String`, `Each_Scaled`,
+  `Each_Section` and `Each_Key`; `src/app/tabula-csv.ads`,
+  `Each_Row`.
+- **What is wrong:** every callback is a bare access-to-procedure
+  with no context.  A caller that collects or accumulates anything
+  must keep it in package-level variables, and `Warner` is a
+  library-level access type, so its target and what it records are
+  library-level too.  statera does exactly that in three units (its
+  config warnings, its config reader, its dated-file loader), which
+  also makes them unsafe on a task pool.  A nested callback is no way
+  out: the house shape rules forbid nested subprogram bodies.
+- **Why:** the APIs were written for loggers and one-off walks, where
+  nothing is carried from one call to the next.
+- **Fix:** beside every existing callback API, an overload that takes
+  the caller's object, and nothing existing changes.  Interfaces, one
+  per callback, each with its own primitive's name so one caller type
+  may be several of them: `Listener.Warn`,
+  `String_Visitor.Visit_String`, `Scaled_Visitor.Visit_Scaled`,
+  `Section_Visitor.Visit_Section`, `Key_Visitor.Visit_Key`, and
+  `Tabula.Csv.Row_Visitor.Visit_Row`.  `Load` and `Parse` gain an
+  overload whose warnings go to a `not null access Listener'Class`
+  the caller owns and the table (and every table taken from it)
+  carries.  Each walker gains an overload taking `in out
+  <Kind>_Visitor'Class`.  The existing access-to-procedure walkers
+  become thin adapters over the new ones (a private visitor whose
+  discriminant is the procedure), so each walk has one
+  implementation.
+- **RED first:** `Tabula_Config_Tests` collects warnings and walked
+  items in local objects, with no package variable, and fails to
+  compile on `Listener`; a new `context.feature` -- "A reader's own
+  listener hears what its table complains about" and a scenario per
+  walker and for CSV rows, visited into the reader's own object --
+  has undefined steps.
+
 ## 3. Features
 
 | file | new scenarios |
@@ -229,6 +267,7 @@ procedure Each_Row
 | `knobs.feature` | scaled numbers, bare and quoted; a list of them (B8); dates; times; each out-of-range or wrong-typed value warns and falls back |
 | `emit.feature` | a document reads back the same; a key that needs quoting gets it; text that is not a number is refused as a number |
 | `csv.feature` | fields by header name; quoted fields; a ragged record and an unclosed quote are refused with their line; a file written reads back the same |
+| `context.feature` | a reader's own listener hears its table's complaints, a section's among them; each walker, and a CSV file's rows, visited into the reader's own object (B9) |
 
 ## Revision notes
 
@@ -320,3 +359,13 @@ procedure Each_Row
   walkers over one private `Each_Entry` (absent, non-array, the loop)
   and named `Get_Scaled`'s out-of-range wording once; nothing either
   existing walker or `Get_Scaled` returns or warns changed.
+- **B9 (added after B8, at the user's decision):** the user's rule
+  is dependency injection everywhere -- no package-level variable,
+  set-once cell or singleton -- and the callback APIs made every
+  caller break it.  Interfaces were chosen over generics over a
+  context type: a caller with several callbacks (statera's reader
+  walks keys, sections, strings and numbers, and hears warnings) can
+  be one object implementing several interfaces, with no
+  instantiation per pair of context and callback; distinct primitive
+  names (`Visit_String`, `Visit_Key`, ...) are what let one type be
+  both a string and a key visitor, whose items are both `String`.
