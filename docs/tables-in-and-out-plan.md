@@ -6,7 +6,9 @@ validation, proof).  What differs from the plan below is in the
 revision notes.  B8, a list of numbers at a scale, was added after
 B7 at the user's decision and is built.  B9, callbacks that carry the
 caller's state, was added after B8 on `context-callbacks`.  B10, a
-list of lists, was added after B9 on `nested-lists` and is built.
+list of lists, was added after B9 on `nested-lists` and is built.  B11,
+every value with its kind and its text, was added after B10 on
+`values` and is built.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -301,6 +303,44 @@ procedure Each_Row
   undefined, and `Tabula_Config_Tests` fails to compile on
   `List_Visitor`.
 
+### B11 -- Every value, with its kind and its text
+
+- **Where:** a child of `Tabula.Config` (`src/app/tabula-config-values.ads`),
+  beside `Each_Key`, whose file order it shares; ada_toml's
+  `Location` (`src/toml.ads:133`) and `Any_Float` (`:47`).
+- **What is wrong:** statera's PRO converter keeps every key of a PRO
+  file -- its report lists each one, known to statera or not -- with
+  its kind, and reads them through ada_toml directly, a second TOML
+  reader beside tabula.  tabula cannot (1) read a date or a time inside
+  a list (`start_date = [2020-01-01]`), (2) say what kind a value is,
+  nor read a local or offset date-time at all, or (3) hand a float over
+  exactly without a floating-point type: `Get_Scaled` stops at a scale
+  of 10^9 and rounds.
+- **Why:** every getter asks for one knob by its key and its type;
+  nothing needed a whole document until the converter did.
+- **Fix:** `type Value_Kind is (A_Table, An_Array, A_Text, An_Integer,
+  A_Decimal, A_Flag, A_Date, A_Time, A_Local_Datetime,
+  An_Offset_Datetime, Not_A_Number, An_Infinity)`; `type Value_Visitor
+  is limited interface; procedure Visit_Value (V; Key, Kind, Text, Item
+  : Table)`; `Each_Value (T, Visitor)` and its procedure form.  A
+  table's values in file order (Each_Key's), a list's in its order with
+  no key; a table or a list among them handed over as a `Table` the
+  walk takes in turn.  Text: a string as it reads, an integer's decimal
+  digits, a flag's true or false, a date, a time (milliseconds when it
+  has a fraction) or a date-time as TOML writes it, a special float's
+  sign and name -- and a decimal as the literal the document wrote, a
+  plain decimal digit for digit.  The parser keeps a float as a double,
+  so the literal is read from the document's text, at the line and
+  column the parser recorded: the table carries the text (Load reads
+  the file whole and parses that text), a new core unit
+  `Tabula.Toml_Source` maps the place back to the literal, and
+  `Tabula.Toml_Text.Decimal_Of` turns the literal into the plain
+  decimal, both proved, with no floating point.  Nothing an existing
+  getter or walk returns or warns changes.
+- **RED first:** `Tabula_Toml_Text_Tests` fails to compile on
+  `Decimal_Of`; a new `Tabula_Config_Values_Tests` on the missing
+  child; `values.feature` has undefined steps.
+
 ## 3. Features
 
 | file | new scenarios |
@@ -310,6 +350,7 @@ procedure Each_Row
 | `emit.feature` | a document reads back the same; a key that needs quoting gets it; text that is not a number is refused as a number |
 | `csv.feature` | fields by header name; quoted fields; a ragged record and an unclosed quote are refused with their line; a file written reads back the same |
 | `context.feature` | a reader's own listener hears its table's complaints, a section's among them; each walker, and a CSV file's rows, visited into the reader's own object (B9); a grid of lists, one list per option, a flat list as one option, and a grid's entry that is not a list (B10) |
+| `values.feature` | every value with its kind and its text, in file order; a decimal as written; dates inside a list; tables and lists walked in turn, to a visitor and to a procedure (B11) |
 
 ## Revision notes
 
@@ -456,3 +497,48 @@ procedure Each_Row
   list), and `context.feature` three scenarios.  Nothing an existing
   getter or walker returns or warns changed; the private `Table`
   gained a `Name`.
+- **B11 (added after B10, at the user's decision):** statera's PRO
+  converter keeps every key of a PRO file with its kind and reads them
+  through ada_toml directly; the user chose one TOML reader, so tabula
+  walks every value.  As built, in eight cycles:
+  - The walk lives in a child, `Tabula.Config.Values`, so
+    `Tabula.Config`'s body stays under the 1,000 lines a body may hold;
+    the helpers both share -- `Within`, `Complain`, `Written_Entries`,
+    and `To_Date` / `To_Time`, which turn the parser's calendar values
+    into Tabula's for the getters and the walk alike -- are declared in
+    Config's private part, which the child's body sees.
+  - The kinds take the article prefix (`A_Table`, `An_Integer`): bare
+    `Array` is reserved, and `Table`, `Integer` and `Date` would hide a
+    type of the same name.
+  - Exact decimals.  ada_toml records each value's line and column, and
+    no text.  Its places are particular: the codepoint before the
+    value, or the value's own first codepoint when the parser read it
+    ahead (after a `[`); a tab to a stop of 8; a column per codepoint,
+    not byte; CR LF as one line end, which is column one of the line it
+    opens; the document's first codepoint line one, column one, even a
+    line end.  `Tabula.Toml_Source.Number_At` counts exactly so and
+    takes the run of number characters at the codepoint or the byte
+    after it; `Decimal_Of` checks the literal's grammar (digit groups
+    with single underscores, no leading zero, a fraction, an exponent
+    or both) and places the point, keeping the digits as written
+    (`1.50` stays `1.50`, `1e2` is `100`).  The literal and the
+    exponent are bounded (`Max_Literal_Length`, `Max_Exponent`) so the
+    length of the result is proved.  A table carries its document's
+    text privately; `Load` reads the file whole and parses that text,
+    and falls back to the parser's own file read when the text cannot
+    be read, so a refusal's message is the one it always was.  The
+    unit tests check every decimal's text against what the float getter
+    reads (`Long_Float'Value` in the test, never in the crate).
+  - A float whose literal is not found is complained of and skipped,
+    not handed over inexactly; no document ada_toml reads reaches it.
+  - The parser keeps a time's fraction to the millisecond and cuts a
+    finer one, as TOML allows; a time's text carries three digits when
+    it has a fraction (`09:30:00.25` is `09:30:00.250`).  An unknown
+    offset (`-00:00`) keeps that text; offset zero is `Z`.
+  - *Found on the way.*  ada_toml refuses a float whose fraction has
+    more than eighteen digits ("too large float": it reads the fraction
+    as a 64-bit integer).  And a document that ends with a date or a
+    time and no line end makes its lexer fail a precondition, which
+    `Parse` and `Load` let escape as an exception; statera appends a
+    line end before parsing for this reason.  Left for the user: a fix
+    in tabula (append a line end) or upstream.

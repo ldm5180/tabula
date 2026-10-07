@@ -43,6 +43,20 @@ keep the same spirit, and two rules hold for every part of it:
   and a `Warner` callback, or a `Listener` object of the caller's own,
   so complaints read like `feed config: retries is not a number in 1 ..
   Natural'Last; using default`.
+- **`Tabula.Config.Values`** — every value a table or a list holds,
+  whatever its kind, for a reader that keeps a whole document:
+  `Each_Value` hands each to a `Value_Visitor` (or a procedure) with
+  its key (none inside a list), its `Value_Kind` (`A_Table`,
+  `An_Array`, `A_Text`, `An_Integer`, `A_Decimal`, `A_Flag`, `A_Date`,
+  `A_Time`, `A_Local_Datetime`, `An_Offset_Datetime`, `Not_A_Number`,
+  `An_Infinity`), its text, and the value itself as a table to walk in
+  turn.  A table's keys come in the file's order.  A decimal's text is
+  the literal the document wrote, as a plain decimal, digit for digit
+  (`1_000.50` is `1000.50`, `1.5e-3` is `0.0015`): the parser keeps a
+  binary double, so the walk reads the literal from the document's
+  text at the place the parser recorded, with no floating point formed.
+  Dates, times and date-times read as TOML writes them, in a list as
+  at a key.
 - **`Tabula.Decimals`** — the SPARK-proven shape check behind quoted exact
   decimals. ada_toml 0.5.0 reassembles bare floats from an INTEGER
   fraction, dropping leading zeros (`0.02` loads as `0.2`!), so
@@ -160,6 +174,27 @@ end Visit_List;
 ...
 Grid : Options;
 Tabula.Config.Each_List (Root, "entry_targets", Grid);
+```
+
+Or keep every value, known or not, with its kind and text:
+
+```ada
+type Keeper is limited new Tabula.Config.Values.Value_Visitor with null record;
+
+overriding procedure Visit_Value
+  (K    : in out Keeper;
+   Key  : String;
+   Kind : Tabula.Config.Values.Value_Kind;
+   Text : String;
+   Item : Tabula.Config.Table) is
+begin
+   --  start_date = [2020-01-01]: An_Array, then (in turn) A_Date "2020-01-01"
+   --  weight = 0.10:             A_Decimal "0.10", exactly as written
+   Tabula.Config.Values.Each_Value (Item, K);  --  a table or a list, in turn
+end Visit_Value;
+...
+All : Keeper;
+Tabula.Config.Values.Each_Value (Root, All);
 ```
 
 Write one:

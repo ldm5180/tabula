@@ -13,7 +13,9 @@ Two rules hold for every addition:
   the writers take text.  A consumer that wants exact decimals parses
   and prints them itself; tabula forms no number on the way.  The one
   float the crate touches is a TOML float, and `Get_Scaled` (or
-  `Each_Scaled`, for a list) lets it leave at once as an integer.
+  `Each_Scaled`, for a list) lets it leave at once as an integer; the
+  value walk hands it over as the literal the document wrote, read from
+  the text, never through the double.
 - **The reading policy stands, and nothing raises.**  An ABSENT knob
   silently keeps the caller's fallback (a config file states only what
   it changes); a PRESENT but wrong-typed, out-of-range, or
@@ -50,13 +52,19 @@ Two rules hold for every addition:
 ## Layout
 
 - `src/core/` — the SPARK core (`Tabula.Decimals`, `Tabula.Toml_Text`,
-  `Tabula.Csv_Scan`, and the root's calendar types): every unit carries
+  `Tabula.Toml_Source`, `Tabula.Csv_Scan`, and the root's calendar
+  types): every unit carries
   `SPARK_Mode`, does zero IO, and may `with` only other core units and
   sml (the CSV scanner is an sml machine; `sml` is a declared
   dependency that takes fabula's pin).
-- `src/app/`  — the ada_toml adapter (`Tabula.Config`): all ada_toml
-  specifics stay behind this one unit; parser refusals become a
-  `Malformed` status at this boundary and never escape as exceptions.
+- `src/app/`  — the ada_toml adapter (`Tabula.Config`, and its child
+  `Tabula.Config.Values`, the walk of every value with its kind and
+  text): all ada_toml specifics stay behind these two, which share the
+  helpers `Tabula.Config`'s private part declares; parser refusals
+  become a `Malformed` status at this boundary and never escape as
+  exceptions.  A table carries its document's text, so a float's
+  literal is read as written (`Tabula.Toml_Source` finds it by the
+  place the parser recorded, `Tabula.Toml_Text.Decimal_Of` reads it).
   The writer (`Tabula.Emit`) builds on the core's text functions and
   `Tabula.Staged_Files` (write beside, rename into place);
   `Tabula.Text_Lists` is the list of texts the writers take.  The CSV
@@ -66,7 +74,7 @@ Two rules hold for every addition:
   `tabula_features.ads` (`Fabula.Main` over `Tabula_Steps`).  The steps
   are events of sml machines, one region per thing a step acts on --
   `Tabula_Steps.Configs` (where the table comes from), `.Knobs` (what
-  is read from it), `.Walks` (the array and key walkers), `.Emits` (a
+  is read from it), `.Walks` (the array, key and value walkers), `.Emits` (a
   document written and saved), `.Csv_Files` (a CSV file given, read and
   checked) -- each a child with
   its own transition table, over the `Tabula_Steps.Flows` runner; a
@@ -130,7 +138,8 @@ Two rules hold for every addition:
   object: the table's warnings go to a `Tabula.Config.Listener`, and
   each walker hands its items to a visitor interface
   (`String_Visitor`, `Scaled_Visitor`, `Section_Visitor`,
-  `List_Visitor`, `Key_Visitor`, `Tabula.Csv.Row_Visitor`), each with
+  `List_Visitor`, `Key_Visitor`, `Tabula.Config.Values.Value_Visitor`,
+  `Tabula.Csv.Row_Visitor`), each with
   its own primitive's name so one caller type can be several.  A list
   of lists (`Each_List`) hands each inner list over as a `Table`, not
   a new type, so the keyless `Each_String` / `Each_Scaled` read it and
@@ -169,6 +178,11 @@ Two rules hold for every addition:
   message); both leave the empty table, whose every getter falls back.
 - fructus, arb-ada and firescan-ada read through the getters: never
   change what an existing getter returns or warns.
+- The value walk (`Tabula.Config.Values.Each_Value`) never warns: every
+  value has a kind.  The one complaint it can make is a float whose
+  literal is not found at the place the parser recorded, which only a
+  parser whose places differ from ada_toml's would produce; that value
+  is skipped rather than handed over inexactly.
 
 ## Writing and CSV contracts (do not break)
 
