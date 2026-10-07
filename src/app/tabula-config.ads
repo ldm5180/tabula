@@ -220,6 +220,21 @@ package Tabula.Config is
    --  Each_Key, handing each key to Visitor.
    procedure Each_Key (T : Table; Visitor : in out Key_Visitor'Class);
 
+   --  What a walk of a list of lists hands each inner list to: a table
+   --  that is the list.
+   type List_Visitor is limited interface;
+
+   procedure Visit_List (V : in out List_Visitor; Item : Table) is abstract;
+
+   --  Walk the lists of a list-of-lists knob -- a grid, whose outer list
+   --  is the options and each inner list one option's value
+   --  (entry_targets = [[15, 25, 35], [20, 30]]) -- handing each inner
+   --  list to Visitor as a table carrying T's label and warner or
+   --  listener: an absent key does nothing, a non-array warns and does
+   --  nothing.
+   procedure Each_List
+     (T : Table; Key : String; Visitor : in out List_Visitor'Class);
+
 private
 
    type Listener_Access is access all Listener'Class;

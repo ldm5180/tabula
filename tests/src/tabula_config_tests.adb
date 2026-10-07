@@ -681,6 +681,52 @@ package body Tabula_Config_Tests is
       Assert (Items (Inner) = "inner,first", "a section's: " & Items (Inner));
    end Test_Key_Visitor;
 
+   --  A grid: lists of lists, as PRO writes its grid options, beside
+   --  knobs a grid walk does not take.
+   Grid_Sample : constant String :=
+     "targets = [[15, 25, 35], [20, 30]]"
+     & ASCII.LF
+     & "filters = [[""skip EOM""], [""skip EOM"", ""skip FOMC""]]"
+     & ASCII.LF
+     & "scalar = 1";
+
+   --  A visitor that counts the lists a walk handed it.
+   type List_Counter is limited new List_Visitor with record
+      Count : Natural := 0;
+   end record;
+
+   overriding
+   procedure Visit_List (V : in out List_Counter; Item : Table);
+
+   overriding
+   procedure Visit_List (V : in out List_Counter; Item : Table) is
+      pragma Unreferenced (Item);
+   begin
+      V.Count := V.Count + 1;
+   end Visit_List;
+
+   --  A grid walk hands over one list per option, in order; an absent
+   --  knob walks nothing, silently, and a knob that is not an array walks
+   --  nothing and is complained of.
+   procedure Test_List_Walk (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard            : aliased Recorder;
+      Root             : Table;
+      Result           : Load_Outcome;
+      Targets, Nothing : List_Counter;
+   begin
+      Parse (Grid_Sample, "grid config", Heard'Access, Root, Result);
+      Each_List (Root, "targets", Targets);
+      Assert (Targets.Count = 2, "one list per option:" & Targets.Count'Image);
+      Each_List (Root, "absent", Nothing);
+      Assert (Silent (Heard), "an absent knob is silent");
+      Each_List (Root, "scalar", Nothing);
+      Assert (Nothing.Count = 0, "absent and non-array walk nothing");
+      Assert
+        (Warned (Heard, "grid config: scalar is not an array; ignoring it"),
+         "the non-array warns: " & Warnings_Text (Heard));
+   end Test_List_Walk;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -717,6 +763,7 @@ package body Tabula_Config_Tests is
         (T, Test_Array_Visitors'Access, "array walks to a visitor");
       Register_Routine
         (T, Test_Key_Visitor'Access, "keys and walked tables, visited");
+      Register_Routine (T, Test_List_Walk'Access, "a grid's lists, walked");
    end Register_Tests;
 
    overriding

@@ -54,6 +54,10 @@ package body Tabula.Config is
         Label => To_Unbounded_String (Label),
         To    => To));
 
+   --  V, carrying From's label and where From's complaints go.
+   function Within (From : Table; V : TOML.TOML_Value) return Table
+   is ((Value => V, Label => From.Label, To => From.To));
+
    --  What the parser read, as Root and what came of it.
    procedure Wrap
      (Read   : TOML.Read_Result;
@@ -153,9 +157,9 @@ package body Tabula.Config is
       V : constant TOML.TOML_Value := Lookup (Root, Name);
    begin
       if not Is_Table (V) then
-         return (TOML.No_TOML_Value, Root.Label, Root.To);
+         return Within (Root, TOML.No_TOML_Value);
       end if;
-      return (Value => V, Label => Root.Label, To => Root.To);
+      return Within (Root, V);
    end Section;
 
    function Has (T : Table; Key : String) return Boolean
@@ -514,11 +518,34 @@ package body Tabula.Config is
       Item : TOML.TOML_Value) is
    begin
       if TOML.Kind (Item) = TOML.TOML_Table then
-         V.To.Visit_Section ((Value => Item, Label => T.Label, To => T.To));
+         V.To.Visit_Section (Within (T, Item));
       else
          Complain (T, "non-table " & Key & " entry skipped");
       end if;
    end Take;
+
+   --  The arrays of an array, each a table carrying T's label and sink,
+   --  to To.
+   type List_Entries (To : not null access List_Visitor'Class) is limited
+     new Entry_Visitor
+   with null record;
+
+   overriding
+   procedure Take
+     (V : in out List_Entries; T : Table; Key : String; Item : TOML.TOML_Value)
+   is
+      pragma Unreferenced (Key);
+   begin
+      V.To.Visit_List (Within (T, Item));
+   end Take;
+
+   procedure Each_List
+     (T : Table; Key : String; Visitor : in out List_Visitor'Class)
+   is
+      Entries : List_Entries (Visitor'Access);
+   begin
+      Each_Entry (T, Key, Entries);
+   end Each_List;
 
    procedure Each_String
      (T : Table; Key : String; Visitor : in out String_Visitor'Class)
