@@ -686,7 +686,7 @@ package body Tabula_Config_Tests is
    Grid_Sample : constant String :=
      "targets = [[15, 25, 35], [20, 30]]"
      & ASCII.LF
-     & "filters = [[""skip EOM""], [""skip EOM"", ""skip FOMC""]]"
+     & "filters = [[""skip EOM""], [""skip EOM"", 3, ""skip FOMC""]]"
      & ASCII.LF
      & "scalar = 1";
 
@@ -727,6 +727,32 @@ package body Tabula_Config_Tests is
          "the non-array warns: " & Warnings_Text (Heard));
    end Test_List_Walk;
 
+   --  A list a grid walk hands over is walked for its strings as a knob
+   --  is, and a non-string entry is complained of by the option's name,
+   --  its key and its place counting from one; a table that is not such
+   --  a list walks nothing, silently.
+   procedure Test_List_Strings (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard   : aliased Recorder;
+      Root    : Table;
+      Result  : Load_Outcome;
+      Filters : List_Gatherer;
+      Nothing : Gatherer;
+   begin
+      Parse (Grid_Sample, "grid config", Heard'Access, Root, Result);
+      Each_List (Root, "filters", Filters);
+      Assert
+        (Items (Filters) = "[skip EOM],[skip EOM,skip FOMC]",
+         "each list's strings: " & Items (Filters));
+      Assert
+        (Warned (Heard, "grid config: non-string filters[2] entry skipped"),
+         "the non-string warns, naming its list: " & Warnings_Text (Heard));
+      Each_String (Root, Nothing);
+      Each_String (Section (Root, "absent"), Nothing);
+      Assert (Items (Nothing) = "", "a table that is not a list: nothing");
+      Assert (not Warned (Heard, "not an array"), "and silently");
+   end Test_List_Strings;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -764,6 +790,8 @@ package body Tabula_Config_Tests is
       Register_Routine
         (T, Test_Key_Visitor'Access, "keys and walked tables, visited");
       Register_Routine (T, Test_List_Walk'Access, "a grid's lists, walked");
+      Register_Routine
+        (T, Test_List_Strings'Access, "a grid's lists of strings");
    end Register_Tests;
 
    overriding

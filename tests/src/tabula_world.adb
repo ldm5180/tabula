@@ -165,6 +165,18 @@ package body Tabula_World is
    function Items (G : Gatherer) return String
    is (Ada.Strings.Unbounded.To_String (G.Items));
 
+   overriding
+   procedure Visit_List (G : in out List_Gatherer; Item : Tabula.Config.Table)
+   is
+      Entries : Gatherer;
+   begin
+      Tabula.Config.Each_String (Item, Entries);
+      Add (G.Lists, "[" & Items (Entries) & "]");
+   end Visit_List;
+
+   function Items (G : List_Gatherer) return String
+   is (Items (G.Lists));
+
    procedure Free_Recorder is new
      Ada.Unchecked_Deallocation (Recorder, Recorder_Access);
 

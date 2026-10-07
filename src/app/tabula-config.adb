@@ -1,5 +1,6 @@
 with Ada.Containers.Generic_Array_Sort;
 with Ada.Directories;
+with Ada.Strings.Fixed;
 
 with TOML.File_IO;
 
@@ -52,11 +53,15 @@ package body Tabula.Config is
    function Empty (Label : String; To : Sink) return Table
    is ((Value => TOML.No_TOML_Value,
         Label => To_Unbounded_String (Label),
-        To    => To));
+        To    => To,
+        Name  => Null_Unbounded_String));
 
    --  V, carrying From's label and where From's complaints go.
    function Within (From : Table; V : TOML.TOML_Value) return Table
-   is ((Value => V, Label => From.Label, To => From.To));
+   is ((Value => V,
+        Label => From.Label,
+        To    => From.To,
+        Name  => Null_Unbounded_String));
 
    --  What the parser read, as Root and what came of it.
    procedure Wrap
@@ -443,6 +448,25 @@ package body Tabula.Config is
 
    use Walking;
 
+   --  Whether V is an array: present, and of the array kind.
+   function Is_Array (V : TOML.TOML_Value) return Boolean
+   is (not TOML.Is_Null (V) and then TOML.Kind (V) = TOML.TOML_Array);
+
+   --  Hand each entry of the array V, read from T and called Key, to
+   --  Entries, in order.
+   procedure Each_Item
+     (T       : Table;
+      Key     : String;
+      V       : TOML.TOML_Value;
+      Entries : in out Entry_Visitor'Class)
+   with Pre => Is_Array (V)
+   is
+   begin
+      for I in 1 .. TOML.Length (V) loop
+         Entries.Take (T, Key, TOML.Item (V, I));
+      end loop;
+   end Each_Item;
+
    --  Hand each entry of the array knob Key to Entries, in order: an
    --  absent key does nothing, silently; a non-array warns and does
    --  nothing.
@@ -451,16 +475,22 @@ package body Tabula.Config is
    is
       V : constant TOML.TOML_Value := Lookup (T, Key);
    begin
-      if TOML.Is_Null (V) then
-         return;
-      elsif TOML.Kind (V) /= TOML.TOML_Array then
+      if Is_Array (V) then
+         Each_Item (T, Key, V, Entries);
+      elsif not TOML.Is_Null (V) then
          Complain (T, Key & " is not an array; ignoring it");
-         return;
       end if;
-      for I in 1 .. TOML.Length (V) loop
-         Entries.Take (T, Key, TOML.Item (V, I));
-      end loop;
    end Each_Entry;
+
+   --  Hand each entry of List, a list a list of lists handed over, to
+   --  Entries, in order, by the list's name; any other table, nothing.
+   procedure Each_List_Entry
+     (List : Table; Entries : in out Entry_Visitor'Class) is
+   begin
+      if Is_Array (List.Value) then
+         Each_Item (List, To_String (List.Name), List.Value, Entries);
+      end if;
+   end Each_List_Entry;
 
    --  The strings of an array, to To.
    type String_Entries (To : not null access String_Visitor'Class) is limited
@@ -524,19 +554,30 @@ package body Tabula.Config is
       end if;
    end Take;
 
-   --  The arrays of an array, each a table carrying T's label and sink,
-   --  to To.
+   --  The arrays of an array, each a table carrying T's label and sink
+   --  and named by its key and place, to To; Taken counts the entries.
    type List_Entries (To : not null access List_Visitor'Class) is limited
      new Entry_Visitor
-   with null record;
+   with record
+      Taken : Natural := 0;
+   end record;
+
+   --  What the entry of Key at Place is called: entry_targets[2].
+   function Place_Name (Key : String; Place : Positive) return String
+   is (Key
+       & "["
+       & Ada.Strings.Fixed.Trim (Place'Image, Ada.Strings.Left)
+       & "]");
 
    overriding
    procedure Take
      (V : in out List_Entries; T : Table; Key : String; Item : TOML.TOML_Value)
    is
-      pragma Unreferenced (Key);
    begin
-      V.To.Visit_List (Within (T, Item));
+      V.Taken := V.Taken + 1;
+      V.To.Visit_List
+        ((Within (T, Item)
+          with delta Name => To_Unbounded_String (Place_Name (Key, V.Taken))));
    end Take;
 
    procedure Each_List
@@ -553,6 +594,13 @@ package body Tabula.Config is
       Entries : String_Entries (Visitor'Access);
    begin
       Each_Entry (T, Key, Entries);
+   end Each_String;
+
+   procedure Each_String (List : Table; Visitor : in out String_Visitor'Class)
+   is
+      Entries : String_Entries (Visitor'Access);
+   begin
+      Each_List_Entry (List, Entries);
    end Each_String;
 
    procedure Each_Scaled

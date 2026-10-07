@@ -235,6 +235,13 @@ package Tabula.Config is
    procedure Each_List
      (T : Table; Key : String; Visitor : in out List_Visitor'Class);
 
+   --  Walk the strings of List, a list a walk of a list of lists handed
+   --  over, as Each_String walks a knob's: each non-string entry warns,
+   --  naming the list by its key and its place counting from one
+   --  (entry_targets[2]), and is skipped.  A table that is not such a
+   --  list walks nothing, silently.
+   procedure Each_String (List : Table; Visitor : in out String_Visitor'Class);
+
 private
 
    type Listener_Access is access all Listener'Class;
@@ -246,10 +253,13 @@ private
       Heard_By : Listener_Access;
    end record;
 
+   --  Name is what a list's complaints call it: its key and its place in
+   --  the list of lists it came from; empty for any other table.
    type Table is record
       Value : TOML.TOML_Value := TOML.No_TOML_Value;
       Label : Ada.Strings.Unbounded.Unbounded_String;
       To    : Sink;
+      Name  : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
 end Tabula.Config;

@@ -100,6 +100,16 @@ package Tabula_World is
 
    function Items (G : Gatherer) return String;
 
+   --  A list visitor a reader owns: each list it was handed, its strings
+   --  gathered as a Gatherer gathers them and bracketed, the lists
+   --  comma-separated ("[a,b],[c]").
+   type List_Gatherer is limited new Tabula.Config.List_Visitor with private;
+
+   overriding
+   procedure Visit_List (G : in out List_Gatherer; Item : Tabula.Config.Table);
+
+   function Items (G : List_Gatherer) return String;
+
    --  A recorder a scenario holds across its steps, which copy the world.
    type Recorder_Access is access Recorder;
 
@@ -148,6 +158,10 @@ private
      and Tabula.Config.Key_Visitor
    with record
       Items : Ada.Strings.Unbounded.Unbounded_String;
+   end record;
+
+   type List_Gatherer is limited new Tabula.Config.List_Visitor with record
+      Lists : Gatherer;
    end record;
 
 end Tabula_World;
