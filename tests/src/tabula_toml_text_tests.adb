@@ -167,6 +167,61 @@ package body Tabula_Toml_Text_Tests is
          "and a time's as the time");
    end Test_Date_Time_Text;
 
+   --  A TOML float as a plain decimal, exactly: the digits as written, the
+   --  point moved by the exponent, no underscore, no plus sign.
+   procedure Test_Decimal_Of (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+
+      --  Whether Literal reads as Want, saying what it read when not.
+      procedure Check (Literal, Want : String) is
+      begin
+         Assert
+           (Decimal_Of (Literal) = Want,
+            Literal & " reads as " & Want & ", not " & Decimal_Of (Literal));
+      end Check;
+   begin
+      Check ("1.5", "1.5");
+      Check ("0.2621", "0.2621");
+      Check ("0.02", "0.02");
+      Check ("-0.02", "-0.02");
+      Check ("+1.5", "1.5");
+      Check ("1.50", "1.50");
+      Check ("-0.0", "-0.0");
+      Check ("1_000.000_25", "1000.00025");
+      Check ("0.12345678901234567890", "0.12345678901234567890");
+      Check ("1e2", "100");
+      Check ("1E+2", "100");
+      Check ("1.5e3", "1500");
+      Check ("1.25e1", "12.5");
+      Check ("12.5e-1", "1.25");
+      Check ("1e-2", "0.01");
+      Check ("-1.5e-3", "-0.0015");
+      Check ("100e-2", "1.00");
+      Check ("0.5e1", "5");
+      Check ("0.05e2", "5");
+      Check ("0e0", "0");
+      Check ("0.0e5", "0");
+      Check ("1e0_1", "10");
+      Check ("6.626e-34", "0.0000000000000000000000000000000006626");
+      Check ("1", "");
+      Check ("-7", "");
+      Check ("1.", "");
+      Check (".5", "");
+      Check ("01.5", "");
+      Check ("1__0.5", "");
+      Check ("_1.5", "");
+      Check ("1.5_", "");
+      Check ("1._5", "");
+      Check ("1.5e", "");
+      Check ("1.5e+", "");
+      Check ("1e99999", "");
+      Check ("+-1.5", "");
+      Check ("inf", "");
+      Check ("nan", "");
+      Check ("1.5x", "");
+      Check ("", "");
+   end Test_Decimal_Of;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -181,6 +236,8 @@ package body Tabula_Toml_Text_Tests is
         (T, Test_Number_Text'Access, "what the writer passes as a number");
       Register_Routine
         (T, Test_Date_Time_Text'Access, "a date's and a time's text");
+      Register_Routine
+        (T, Test_Decimal_Of'Access, "a float as a plain decimal, exactly");
    end Register_Tests;
 
    overriding

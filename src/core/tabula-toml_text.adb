@@ -34,6 +34,8 @@ is
    --  Fields of fixed width.
    ---------------------------------------------------------------------
 
+   subtype Digit is Character range '0' .. '9';
+
    --  The widest field read: a year's four digits.
    Max_Width : constant := 4;
 
@@ -60,7 +62,7 @@ is
       for I in 0 .. Width - 1 loop
          pragma Loop_Invariant (Acc < Powers (I));
          C := Text (Text'First + Offset + I);
-         if C not in '0' .. '9' then
+         if C not in Digit then
             return No_Number;
          end if;
          Acc := Acc * 10 + (Character'Pos (C) - Character'Pos ('0'));
@@ -247,7 +249,7 @@ is
    end String_Text;
 
    function Is_Bare_Key_Character (C : Character) return Boolean
-   is (C in 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '-');
+   is (C in 'A' .. 'Z' | 'a' .. 'z' | Digit | '_' | '-');
 
    function Key_Text (Key : String) return String
    is (if Key'Length > 0
@@ -277,7 +279,7 @@ is
       return
         First < Text'Last
         and then Text (First) = '0'
-        and then Text (First + 1) in '0' .. '9';
+        and then Text (First + 1) in Digit;
    end Leads_With_Zero;
 
    --  How many digits Text holds from its first non-zero one on.
@@ -288,7 +290,7 @@ is
       for I in Text'Range loop
          pragma Loop_Invariant (Count <= I - Text'First);
          Started := Started or else Text (I) in '1' .. '9';
-         if Started and then Text (I) in '0' .. '9' then
+         if Started and then Text (I) in Digit then
             Count := Count + 1;
          end if;
       end loop;
@@ -301,5 +303,219 @@ is
        and then (if Has_Point (Text)
                  then Significant_Digits (Text) <= Max_Float_Digits
                  else Decimals.Scaled (Text, 1).Fits));
+
+   ---------------------------------------------------------------------
+   --  A float as a plain decimal.
+   ---------------------------------------------------------------------
+
+   Group_Mark : constant Character := '_';
+   Point_Mark : constant Character := '.';
+
+   --  Whether Text is digits a single underscore may group: a digit
+   --  first and last, and an underscore only before a digit.
+   function Is_Digit_Group (Text : String) return Boolean
+   is (Text'Length > 0
+       and then Text (Text'First) in Digit
+       and then Text (Text'Last) in Digit
+       and then (for all I in Text'Range =>
+                   Text (I) in Digit
+                   or else (Text (I) = Group_Mark
+                            and then I < Text'Last
+                            and then Text (I + 1) in Digit)));
+
+   --  Whether Text is a float's whole part: a digit group with no
+   --  leading zero.
+   function Is_Whole_Part (Text : String) return Boolean
+   is (Is_Digit_Group (Text)
+       and then (Text'Length = 1 or else Text (Text'First) /= '0'));
+
+   --  Whether C is a sign.
+   function Is_Sign (C : Character) return Boolean
+   is (C in '+' | '-');
+
+   --  The place of Text's first A or B from From on, or 0 when none.
+   function Index_Of
+     (Text : String; From : Positive; A, B : Character) return Natural
+   with
+     Post =>
+       Index_Of'Result = 0
+       or else Index_Of'Result in Integer'Max (From, Text'First) .. Text'Last
+   is
+   begin
+      for I in Integer'Max (From, Text'First) .. Text'Last loop
+         if Text (I) = A or else Text (I) = B then
+            return I;
+         end if;
+      end loop;
+      return 0;
+   end Index_Of;
+
+   --  An exponent read from its text: Value is meaningful only when Ok.
+   type Exponent_Read is record
+      Ok    : Boolean := False;
+      Value : Integer range -Max_Exponent .. Max_Exponent := 0;
+   end record;
+
+   --  The value of the digit group Text, or Max_Exponent + 1 when it is
+   --  more than Max_Exponent.
+   function Group_Value (Text : String) return Natural
+   with Post => Group_Value'Result <= Max_Exponent + 1
+   is
+      Acc : Natural := 0;
+   begin
+      for I in Text'Range loop
+         pragma Loop_Invariant (Acc <= Max_Exponent);
+         if Text (I) in Digit then
+            Acc := Acc * 10 + (Character'Pos (Text (I)) - Character'Pos ('0'));
+            if Acc > Max_Exponent then
+               return Max_Exponent + 1;
+            end if;
+         end if;
+      end loop;
+      return Acc;
+   end Group_Value;
+
+   --  Text, an exponent after its e -- an optional sign, then a digit
+   --  group, leading zeros allowed -- as its value.
+   function Exponent_Of (Text : String) return Exponent_Read
+   with Pre => Text'Last < Positive'Last
+   is
+      Signed : constant Boolean :=
+        Text'Length > 0 and then Is_Sign (Text (Text'First));
+      Group  : constant String :=
+        (if Signed then Text (Text'First + 1 .. Text'Last) else Text);
+      Value  : Natural;
+   begin
+      if not Is_Digit_Group (Group) then
+         return (Ok => False, Value => 0);
+      end if;
+      Value := Group_Value (Group);
+      if Value > Max_Exponent then
+         return (Ok => False, Value => 0);
+      elsif Signed and then Text (Text'First) = '-' then
+         return (Ok => True, Value => -Value);
+      end if;
+      return (Ok => True, Value => Value);
+   end Exponent_Of;
+
+   --  The digits of Text, its underscores dropped.
+   function Digits_Of (Text : String) return String
+   with
+     Post =>
+       Digits_Of'Result'First = 1
+       and then Digits_Of'Result'Length <= Text'Length
+       and then (if Text'Length > 0 and then Text (Text'First) /= Group_Mark
+                 then Digits_Of'Result'Length > 0)
+   is
+      Result : String (1 .. Text'Length) := [others => '0'];
+      Last   : Natural := 0;
+   begin
+      for I in Text'Range loop
+         pragma Loop_Invariant (Last <= I - Text'First);
+         pragma
+           Loop_Invariant
+             (if I > Text'First and then Text (Text'First) /= Group_Mark
+                then Last > 0);
+         if Text (I) /= Group_Mark then
+            Last := Last + 1;
+            Result (Last) := Text (I);
+         end if;
+      end loop;
+      return Result (1 .. Last);
+   end Digits_Of;
+
+   --  N zeros.
+   function Zeros (N : Natural) return String
+   is ([1 .. N => '0'])
+   with Post => Zeros'Result'Length = N;
+
+   --  The longest run of figures Placed takes.
+   Max_Figures : constant := Max_Literal_Length;
+
+   --  Figures with the point after the first Point of them: zeros lead
+   --  when Point is under one, and follow, with no point, when Point is
+   --  past the last.
+   function Placed (Figures : String; Point : Integer) return String
+   is (if Point <= 0
+       then "0." & Zeros (-Point) & Figures
+       elsif Point >= Figures'Length
+       then Figures & Zeros (Point - Figures'Length)
+       else
+         Figures (Figures'First .. Figures'First + Point - 1)
+         & Point_Mark
+         & Figures (Figures'First + Point .. Figures'Last))
+   with
+     Pre  =>
+       Figures'First = 1
+       and then Figures'Length in 1 .. Max_Figures
+       and then Point in 1 - Max_Exponent .. Figures'Length + Max_Exponent,
+     Post => Placed'Result'Length <= Figures'Length + Max_Exponent + 2;
+
+   --  Text without the zeros that lead its whole part, one kept.
+   function Without_Leading_Zeros (Text : String) return String
+   with
+     Pre  => Text'Length > 0,
+     Post => Without_Leading_Zeros'Result'Length <= Text'Length
+   is
+      First : Positive := Text'First;
+   begin
+      while First < Text'Last
+        and then Text (First) = '0'
+        and then Text (First + 1) /= Point_Mark
+      loop
+         pragma Loop_Invariant (First in Text'Range);
+         pragma Loop_Variant (Increases => First);
+         First := First + 1;
+      end loop;
+      return Text (First .. Text'Last);
+   end Without_Leading_Zeros;
+
+   --  Whole and Fraction, a float's parts, shifted by Exponent places.
+   function Shifted
+     (Whole, Fraction : String; Exponent : Integer) return String
+   with
+     Pre  =>
+       Is_Whole_Part (Whole)
+       and then Whole'Length + Fraction'Length <= Max_Figures
+       and then Exponent in -Max_Exponent .. Max_Exponent,
+     Post =>
+       Shifted'Result'Length
+       <= Whole'Length + Fraction'Length + Max_Exponent + 2
+   is
+      Lead    : constant String := Digits_Of (Whole);
+      Figures : constant String := Lead & Digits_Of (Fraction);
+   begin
+      return Without_Leading_Zeros (Placed (Figures, Lead'Length + Exponent));
+   end Shifted;
+
+   function Decimal_Of (Literal : String) return String is
+      S          : constant String (1 .. Literal'Length) := Literal;
+      Start      : constant Positive :=
+        (if S'Length > 0 and then Is_Sign (S (1)) then 2 else 1);
+      E          : constant Natural := Index_Of (S, Start, 'e', 'E');
+      Last       : constant Natural := (if E = 0 then S'Last else E - 1);
+      Point      : constant Natural :=
+        Index_Of (S (1 .. Last), Start, '.', '.');
+      Whole_Last : constant Natural := (if Point = 0 then Last else Point - 1);
+      Exponent   : constant Exponent_Read :=
+        (if E = 0 then (True, 0) else Exponent_Of (S (E + 1 .. S'Last)));
+      Sign       : constant String :=
+        (if Start = 2 and then S (1) = '-' then "-" else "");
+   begin
+      if not Exponent.Ok
+        or else (Point = 0 and then E = 0)
+        or else not Is_Whole_Part (S (Start .. Whole_Last))
+        or else (Point /= 0
+                 and then not Is_Digit_Group (S (Point + 1 .. Last)))
+      then
+         return "";
+      end if;
+      return
+        Sign
+        & Shifted
+            (S (Start .. Whole_Last),
+             (if Point = 0 then "" else S (Point + 1 .. Last)),
+             Exponent.Value);
+   end Decimal_Of;
 
 end Tabula.Toml_Text;

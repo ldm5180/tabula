@@ -70,6 +70,23 @@ is
    --  Max_Float_Digits significant digits.
    function Is_Number_Text (Text : String) return Boolean;
 
+   --  The longest literal Decimal_Of reads, and the largest exponent it
+   --  places: past them a literal is not one a config writes.
+   Max_Literal_Length : constant := 65_536;
+   Max_Exponent       : constant := 9_999;
+
+   --  Literal, a TOML float, as a plain decimal, exactly: its digits as
+   --  written, the point moved by its exponent, its underscores and a
+   --  plus sign dropped ("1_000.50" is "1000.50", "1.5e-3" is "0.0015",
+   --  "1e2" is "100").  The float is [+|-]whole, then .fraction, e or E
+   --  and a signed exponent, or both, each part digits a single
+   --  underscore may group, the whole part with no leading zero.  Empty
+   --  for any other text, and for an exponent past Max_Exponent.
+   function Decimal_Of (Literal : String) return String
+   with
+     Pre  => Literal'Length <= Max_Literal_Length,
+     Post => Decimal_Of'Result'Length <= Literal'Length + Max_Exponent + 3;
+
    --  D as a TOML local date, YYYY-MM-DD.
    function Date_Text (D : Date) return String;
 
