@@ -8,7 +8,8 @@ B7 at the user's decision and is built.  B9, callbacks that carry the
 caller's state, was added after B8 on `context-callbacks`.  B10, a
 list of lists, was added after B9 on `nested-lists` and is built.  B11,
 every value with its kind and its text, was added after B10 on
-`values` and is built.
+`values` and is built.  B12, two fixes to loading -- a document that
+ends without a line end, and where a refusal is -- is on `load-fixes`.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -341,6 +342,56 @@ procedure Each_Row
   `Decimal_Of`; a new `Tabula_Config_Values_Tests` on the missing
   child; `values.feature` has undefined steps.
 
+### B12 -- A document that ends without a line end; where a refusal is
+
+- **Where:** `src/app/tabula-config.adb` at `a1c4d25`: `Parsed_Of`
+  (`:75`), which every `Parse` and every readable `Load` goes
+  through, and `Wrap` (`:80`), which turns the parser's refusal into
+  `Load_Outcome.Error` and, through `Split`, the older form's `Error`.
+  ada_toml: `Reemit_Codepoint`'s precondition
+  (`src/toml-generic_parse.adb:168`), and `Format_Error`
+  (`src/toml.ads:433`).
+- **What is wrong:** (1) A document whose last value is a date, a
+  time without a fraction, a local date-time, or a date-time with a
+  numeric offset, with no line end after it (`start = 2020-01-01`,
+  end of text), makes the parser's lexer read past the end and fail
+  `Reemit_Codepoint`'s precondition; `Parse` and `Load` let the
+  `Assertion_Error` escape, where the crate's contract is that nothing
+  raises.  Since B11 `Load` parses the file's text, so a file reaches
+  it as a doc string does.  (2) A refusal's message is the parser's
+  message alone (`invalid syntax`), without the line and column the
+  parser recorded, so a reader cannot be told where a file is broken.
+  statera's converter, which read through ada_toml before it read
+  through tabula, printed `3:1: invalid syntax` (`TOML.Format_Error`),
+  and its users lost the place when it moved to tabula.
+- **Why:** (1) went unseen because every test document of a date or
+  a time had a line after it; B11's `values.feature` found it.  (2)
+  `Wrap` has handed over `Read_Result.Message` since the getters were
+  first written; the place sits beside it, in `Read_Result.Location`.
+- **Fix:** (1) tabula hands the parser the text with a line feed
+  after it when the text ends with neither a line feed nor a carriage
+  return -- a TOML document may end with a line end or not, so no
+  document's meaning changes.  A lone carriage return at the end is
+  left alone: it is refused already (`invalid stray carriage return`),
+  and a line feed after it would make it a line end and accept the
+  document.  The decision is a proved core function,
+  `Tabula.Toml_Source.Line_Ended`; the table keeps the text it parsed,
+  whose places are the document's own, since the line feed comes after
+  every one of them.  (2) The message is `TOML.Format_Error`'s:
+  `LINE:COLUMN: message`, and the message alone when the parser
+  recorded no place (a file it could not open, whose message is
+  unchanged).  Both forms of `Load` and `Parse`.  Nothing else
+  changes, with one consequence of (1) to know: a broken document
+  that ends without a line end is refused where the parser now meets
+  the end, the line after its last (`[run` is `2:1: invalid syntax`).
+- **RED first:** a new `Tabula_Config_Load_Tests`: a document ending
+  in a date, a time and a date-time, each with and without a line
+  end, parses and reads (the build first fails on `Line_Ended` in
+  `Tabula_Toml_Source_Tests`; the parse raises); a malformed document
+  is refused with `3:1: invalid syntax` by `Parse` and `Load`, in both
+  forms.  `files.feature`: a file and a doc string that end with a date
+  and a time load.
+
 ## 3. Features
 
 | file | new scenarios |
@@ -351,6 +402,7 @@ procedure Each_Row
 | `csv.feature` | fields by header name; quoted fields; a ragged record and an unclosed quote are refused with their line; a file written reads back the same |
 | `context.feature` | a reader's own listener hears its table's complaints, a section's among them; each walker, and a CSV file's rows, visited into the reader's own object (B9); a grid of lists, one list per option, a flat list as one option, and a grid's entry that is not a list (B10) |
 | `values.feature` | every value with its kind and its text, in file order; a decimal as written; dates inside a list; tables and lists walked in turn, to a visitor and to a procedure (B11) |
+| `files.feature` | a file and a doc string that end with a date or a time and no line end load; a refusal names its line and column (B12) |
 
 ## Revision notes
 
