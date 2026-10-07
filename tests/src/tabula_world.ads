@@ -4,10 +4,13 @@ with Tabula.Config;
 
 with Fabula.Frames;
 
+private with Ada.Containers.Indefinite_Vectors;
+
 --  What the AUnit suite and the features share: a recording warner, a
---  parse and a load through it, and the named configs on disk.  Tabula.Config.Warner is a library-level access
---  type, so the recorder and what it records are package state here,
---  cleared by Reset and by every Parse.
+--  parse and a load through it, a recording listener a reader owns, and
+--  the named configs on disk.  Tabula.Config.Warner is a library-level
+--  access type, so what the warner records is package state here,
+--  cleared by Reset and by every Parse; what a Recorder hears is its own.
 
 package Tabula_World is
 
@@ -55,6 +58,31 @@ package Tabula_World is
    --  Every recorded warning, for a failure to show.
    function Warnings_Text return String;
 
+   --  A listener a reader owns: every warning its tables made, in order.
+   type Recorder is limited new Tabula.Config.Listener with private;
+
+   overriding
+   procedure Warn (R : in out Recorder; Message : String);
+
+   --  Whether R heard no warning.
+   function Silent (R : Recorder) return Boolean;
+
+   --  Whether a warning R heard contains Fragment.
+   function Warned (R : Recorder; Fragment : String) return Boolean;
+
+   --  Whether R heard a warning from the table labelled Label that names
+   --  Key as a word of its own, as Complained asks of the recorder.
+   function Complained (R : Recorder; Label, Key : String) return Boolean;
+
+   --  Every warning R heard, for a failure to show.
+   function Warnings_Text (R : Recorder) return String;
+
+   --  A recorder a scenario holds across its steps, which copy the world.
+   type Recorder_Access is access Recorder;
+
+   --  Let R go, leaving it null.
+   procedure Free (R : in out Recorder_Access);
+
    --  The scratch file Name: where a test writes, under the tests'
    --  object directory, which this creates when it is not there.  No
    --  file is made.
@@ -78,5 +106,16 @@ package Tabula_World is
 
    --  The whole of the file at Path, or "" when there is none.
    function Contents (Path : String) return String;
+
+private
+
+   package Messages is new
+     Ada.Containers.Indefinite_Vectors
+       (Index_Type   => Positive,
+        Element_Type => String);
+
+   type Recorder is limited new Tabula.Config.Listener with record
+      Heard : Messages.Vector;
+   end record;
 
 end Tabula_World;

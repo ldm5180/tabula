@@ -1,26 +1,24 @@
-with Ada.Containers.Indefinite_Vectors;
 with Ada.Directories;
 with Ada.Streams.Stream_IO;
 with Ada.Strings.Fixed;
+with Ada.Unchecked_Deallocation;
 
 package body Tabula_World is
 
-   package Messages is new
-     Ada.Containers.Indefinite_Vectors
-       (Index_Type   => Positive,
-        Element_Type => String);
-
-   --  Every warning since the last Reset or Parse, one message each.
-   Warnings : Messages.Vector;
+   --  What the warner records: every warning since the last Reset or
+   --  Parse.  Package state because Tabula.Config.Warner is a
+   --  library-level access type; a Recorder of the reader's own is the
+   --  listener forms' way out of it.
+   Shared : Recorder;
 
    procedure Record_Warning (Message : String) is
    begin
-      Warnings.Append (Message);
+      Shared.Warn (Message);
    end Record_Warning;
 
    procedure Reset is
    begin
-      Warnings.Clear;
+      Shared.Heard.Clear;
    end Reset;
 
    procedure Parse
@@ -65,13 +63,6 @@ package body Tabula_World is
    function Named_Exists (Dir, Name : String) return Boolean
    is (Ada.Directories.Exists (Named (Dir, Name)));
 
-   function Silent return Boolean
-   is (Warnings.Is_Empty);
-
-   function Warned (Fragment : String) return Boolean
-   is (for some Message of Warnings =>
-         Ada.Strings.Fixed.Index (Message, Fragment) > 0);
-
    --  What every warning a table makes starts with: its label.
    function Prefix (Label : String) return String
    is (Label & ": ");
@@ -84,22 +75,61 @@ package body Tabula_World is
    function Names (Text, Key : String) return Boolean
    is (Ada.Strings.Fixed.Index (" " & Text & " ", " " & Key & " ") > 0);
 
-   function Complained (Label, Key : String) return Boolean
-   is (for some Message of Warnings =>
-         Begins_With (Message, Prefix (Label))
-         and then Names
-                    (Message
-                       (Message'First + Prefix (Label)'Length .. Message'Last),
-                     Key));
+   --  Whether Message was made by the table labelled Label and names Key.
+   function Complains (Message, Label, Key : String) return Boolean
+   is (Begins_With (Message, Prefix (Label))
+       and then Names
+                  (Message
+                     (Message'First + Prefix (Label)'Length .. Message'Last),
+                   Key));
 
-   function Warnings_Text return String is
+   overriding
+   procedure Warn (R : in out Recorder; Message : String) is
+   begin
+      R.Heard.Append (Message);
+   end Warn;
+
+   function Silent (R : Recorder) return Boolean
+   is (R.Heard.Is_Empty);
+
+   --  Whether Text contains Fragment.
+   function Contains (Text, Fragment : String) return Boolean
+   is (Ada.Strings.Fixed.Index (Text, Fragment) > 0);
+
+   function Warned (R : Recorder; Fragment : String) return Boolean
+   is (for some Message of R.Heard => Contains (Message, Fragment));
+
+   function Complained (R : Recorder; Label, Key : String) return Boolean
+   is (for some Message of R.Heard => Complains (Message, Label, Key));
+
+   function Warnings_Text (R : Recorder) return String is
       Text : Ada.Strings.Unbounded.Unbounded_String;
    begin
-      for Message of Warnings loop
+      for Message of R.Heard loop
          Ada.Strings.Unbounded.Append (Text, " [" & Message & "]");
       end loop;
       return Ada.Strings.Unbounded.To_String (Text);
    end Warnings_Text;
+
+   function Silent return Boolean
+   is (Silent (Shared));
+
+   function Warned (Fragment : String) return Boolean
+   is (Warned (Shared, Fragment));
+
+   function Complained (Label, Key : String) return Boolean
+   is (Complained (Shared, Label, Key));
+
+   function Warnings_Text return String
+   is (Warnings_Text (Shared));
+
+   procedure Free_Recorder is new
+     Ada.Unchecked_Deallocation (Recorder, Recorder_Access);
+
+   procedure Free (R : in out Recorder_Access) is
+   begin
+      Free_Recorder (R);
+   end Free;
 
    --  Where scratch files go, relative to the crate root both test
    --  runners run from.

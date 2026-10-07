@@ -14,12 +14,20 @@ package body Tabula.Config is
    use type TOML.Valid_Float;
    use type TOML.Any_Millisecond;
 
-   --  One complaint through the table's handler (a no-op when null).
+   --  Message to where a table's complaints go.
+   procedure Tell (To : Sink; Message : String) is
+   begin
+      if To.Heard_By /= null then
+         To.Heard_By.Warn (Message);
+      elsif To.Warn /= null then
+         To.Warn (Message);
+      end if;
+   end Tell;
+
+   --  One complaint from T, after its label.
    procedure Complain (T : Table; Suffix : String) is
    begin
-      if T.Warn /= null then
-         T.Warn (To_String (T.Label) & ": " & Suffix);
-      end if;
+      Tell (T.To, To_String (T.Label) & ": " & Suffix);
    end Complain;
 
    --  Whether V is a table: present, and of the table kind.
@@ -40,28 +48,58 @@ package body Tabula.Config is
       return TOML.Get (T.Value, Key);
    end Lookup;
 
+   --  The empty table, labelled Label, complaining to To.
+   function Empty (Label : String; To : Sink) return Table
+   is ((Value => TOML.No_TOML_Value,
+        Label => To_Unbounded_String (Label),
+        To    => To));
+
+   --  What the parser read, as Root and what came of it.
    procedure Wrap
-     (Result : TOML.Read_Result;
+     (Read   : TOML.Read_Result;
       Label  : String;
-      Warn   : Warner;
+      To     : Sink;
       Root   : out Table;
+      Result : out Load_Outcome) is
+   begin
+      Root := Empty (Label, To);
+      if Read.Success then
+         Root.Value := Read.Value;
+         Result := (Loaded, Null_Unbounded_String);
+      else
+         Result := (Malformed, Read.Message);
+      end if;
+   end Wrap;
+
+   --  The one Load: the file at Path, complaining to To.
+   procedure Load_To
+     (Path   : String;
+      Label  : String;
+      To     : Sink;
+      Root   : out Table;
+      Result : out Load_Outcome) is
+   begin
+      if not Ada.Directories.Exists (Path) then
+         Root := Empty (Label, To);
+         Result := (Missing, Null_Unbounded_String);
+         return;
+      end if;
+      Wrap (TOML.File_IO.Load_File (Path), Label, To, Root, Result);
+   end Load_To;
+
+   --  Result as the status and message the warner's forms return.
+   procedure Split
+     (Result : Load_Outcome;
       Status : out Load_Status;
       Error  : out Unbounded_String) is
    begin
-      Root :=
-        (Value => TOML.No_TOML_Value,
-         Label => To_Unbounded_String (Label),
-         Warn  => Warn);
-      Error := Null_Unbounded_String;
+      Status := Result.Status;
+      Error := Result.Error;
+   end Split;
 
-      if Result.Success then
-         Root.Value := Result.Value;
-         Status := Loaded;
-      else
-         Status := Malformed;
-         Error := Result.Message;
-      end if;
-   end Wrap;
+   --  Where the complaints of a table heard by Heard_By go.
+   function Heard (Heard_By : not null access Listener'Class) return Sink
+   is ((Warn => null, Heard_By => Heard_By.all'Unchecked_Access));
 
    procedure Load
      (Path   : String;
@@ -69,18 +107,12 @@ package body Tabula.Config is
       Warn   : Warner;
       Root   : out Table;
       Status : out Load_Status;
-      Error  : out Unbounded_String) is
+      Error  : out Unbounded_String)
+   is
+      Result : Load_Outcome;
    begin
-      if not Ada.Directories.Exists (Path) then
-         Root :=
-           (Value => TOML.No_TOML_Value,
-            Label => To_Unbounded_String (Label),
-            Warn  => Warn);
-         Status := Missing;
-         Error := Null_Unbounded_String;
-         return;
-      end if;
-      Wrap (TOML.File_IO.Load_File (Path), Label, Warn, Root, Status, Error);
+      Load_To (Path, Label, (Warn, null), Root, Result);
+      Split (Result, Status, Error);
    end Load;
 
    procedure Parse
@@ -89,21 +121,41 @@ package body Tabula.Config is
       Warn    : Warner;
       Root    : out Table;
       Status  : out Load_Status;
-      Error   : out Unbounded_String) is
+      Error   : out Unbounded_String)
+   is
+      Result : Load_Outcome;
    begin
-      Wrap (TOML.Load_String (Content), Label, Warn, Root, Status, Error);
+      Wrap (TOML.Load_String (Content), Label, (Warn, null), Root, Result);
+      Split (Result, Status, Error);
+   end Parse;
+
+   procedure Load
+     (Path     : String;
+      Label    : String;
+      Heard_By : not null access Listener'Class;
+      Root     : out Table;
+      Result   : out Load_Outcome) is
+   begin
+      Load_To (Path, Label, Heard (Heard_By), Root, Result);
+   end Load;
+
+   procedure Parse
+     (Content  : String;
+      Label    : String;
+      Heard_By : not null access Listener'Class;
+      Root     : out Table;
+      Result   : out Load_Outcome) is
+   begin
+      Wrap (TOML.Load_String (Content), Label, Heard (Heard_By), Root, Result);
    end Parse;
 
    function Section (Root : Table; Name : String) return Table is
       V : constant TOML.TOML_Value := Lookup (Root, Name);
    begin
       if not Is_Table (V) then
-         return
-           (Value => TOML.No_TOML_Value,
-            Label => Root.Label,
-            Warn  => Root.Warn);
+         return (TOML.No_TOML_Value, Root.Label, Root.To);
       end if;
-      return (Value => V, Label => Root.Label, Warn => Root.Warn);
+      return (Value => V, Label => Root.Label, To => Root.To);
    end Section;
 
    function Has (T : Table; Key : String) return Boolean
@@ -436,7 +488,7 @@ package body Tabula.Config is
       procedure Visit (Item : TOML.TOML_Value) is
       begin
          if TOML.Kind (Item) = TOML.TOML_Table then
-            Process ((Value => Item, Label => T.Label, Warn => T.Warn));
+            Process ((Value => Item, Label => T.Label, To => T.To));
          else
             Complain (T, "non-table " & Key & " entry skipped");
          end if;

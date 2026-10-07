@@ -72,7 +72,8 @@ Two rules hold for every addition:
   its own transition table, over the `Tabula_Steps.Flows` runner; a
   step no region takes fails naming every region's state.
   `Tabula_World` is the recording warner, the parse and the load the
-  suite and the features share.  A config a scenario needs is a doc
+  suite and the features share, and the `Recorder` listener a test or
+  a scenario owns.  A config a scenario needs is a doc
   string; one whose file is the behavior is a named file,
   `tests/features/configs/<name>.toml`.
 - `example/` — standalone demo main; pure, built and run in CI.
@@ -152,7 +153,8 @@ Two rules hold for every addition:
 ## Reading contracts (do not break)
 
 - Absence is silent; only a present-but-unusable knob warns, exactly once,
-  through the table's `Warner`, prefixed with the table's label.
+  through the table's `Warner` or `Listener`, prefixed with the table's
+  label.
 - The quoted exact-decimal form (`bump = "0.02"`) exists because ada_toml
   0.5.0 drops the leading zeros of a bare float's fraction (0.02 → 0.2);
   keep the quoted path exact (`'Value` on a shape the proven

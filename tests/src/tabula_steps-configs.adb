@@ -6,34 +6,41 @@ with Tabula_World;
 package body Tabula_Steps.Configs is
 
    use type Tabula.Config.Load_Status;
+   use type Tabula_World.Recorder_Access;
 
    --  Unparsed until a config is given; Given while what came of it is
    --  settled; Parsed with a loaded table in hand, Refused with the
    --  empty one a missing or malformed config leaves.
    type State is (Unparsed, Given, Parsed, Refused);
 
-   type Guard_Kind is (Always, Doc_Given, File_Named, Document_Saved, Loaded);
+   type Guard_Kind is
+     (Always, Doc_Given, File_Named, Document_Saved, Loaded, Listening);
 
    type Action_Kind is
      (A_Nothing,
       --  Giving a config.
       A_Parse,
+      A_Parse_Heard,
       A_Load,
       A_Load_Missing,
       A_Load_Saved,
       A_Refuse_Doc,
       A_Refuse_File,
       A_Refuse_Unsaved,
+      A_Refuse_Unheard,
       A_Take_Section,
       --  Checking it.
       A_Check_Loaded,
       A_Check_Malformed,
       A_Check_Missing,
       A_Check_Silent,
-      A_Check_Warned);
+      A_Check_Warned,
+      A_Check_Heard,
+      A_Check_Heard_Nothing);
 
    subtype Give_Action is Action_Kind range A_Parse .. A_Take_Section;
-   subtype Check_Action is Action_Kind range A_Check_Loaded .. A_Check_Warned;
+   subtype Check_Action is
+     Action_Kind range A_Check_Loaded .. A_Check_Heard_Nothing;
 
    --  Where each value sits among a step's captures.
    Label_Capture : constant := 1;
@@ -66,7 +73,8 @@ package body Tabula_Steps.Configs is
              Tabula_World.Named_Exists (Dir (Ctx), File (Ctx)),
            when Document_Saved =>
              Ada.Directories.Exists (Tabula_World.Saved_Document),
-           when Loaded         => Ctx.W.Status = Tabula.Config.Loaded);
+           when Loaded         => Ctx.W.Status = Tabula.Config.Loaded,
+           when Listening      => Ctx.W.Heard /= null);
    end Evaluate;
 
    ---------------------------------------------------------------------
@@ -88,6 +96,28 @@ package body Tabula_Steps.Configs is
       Then_Take (Ctx, E_Given);
    end Parse;
 
+   --  The doc string parsed with the scenario's own listener hearing its
+   --  table: a fresh one, made the first time a scenario asks.
+   procedure Parse_Heard (Ctx : in out Step_Context)
+   with Pre => Fabula.Args.Has_Doc (Ctx.A)
+   is
+      Result : Tabula.Config.Load_Outcome;
+   begin
+      if Ctx.W.Heard = null then
+         Ctx.W.Heard := new Tabula_World.Recorder;
+      end if;
+      Ctx.W.Label := To_Unbounded_String (Label (Ctx));
+      Tabula.Config.Parse
+        (Content  => Fabula.Args.Doc_String (Ctx.A),
+         Label    => Label (Ctx),
+         Heard_By => Ctx.W.Heard,
+         Root     => Ctx.W.Root,
+         Result   => Result);
+      Ctx.W.Status := Result.Status;
+      Ctx.W.Error := Result.Error;
+      Then_Take (Ctx, E_Given);
+   end Parse_Heard;
+
    procedure Load (Ctx : in out Step_Context; Path : String) is
    begin
       Ctx.W.Label := To_Unbounded_String (Label (Ctx));
@@ -105,6 +135,9 @@ package body Tabula_Steps.Configs is
       case A is
          when A_Parse          =>
             Parse (Ctx);
+
+         when A_Parse_Heard    =>
+            Parse_Heard (Ctx);
 
          when A_Load           =>
             Load (Ctx, Tabula_World.Named (Dir (Ctx), File (Ctx)));
@@ -125,6 +158,10 @@ package body Tabula_Steps.Configs is
 
          when A_Refuse_Unsaved =>
             Fabula.Check.Fail_Step (Ctx.R, "no document was saved to read");
+
+         when A_Refuse_Unheard =>
+            Fabula.Check.Fail_Step
+              (Ctx.R, "no config was given its own listener");
 
          when A_Take_Section   =>
             Ctx.W.Root :=
@@ -157,28 +194,57 @@ package body Tabula_Steps.Configs is
          & Tabula_World.Warnings_Text);
    end Find_Complaint;
 
+   --  Whether the scenario's own listener heard a complaint naming the
+   --  step's key, from the table's label.
+   procedure Find_Heard (Ctx : in out Step_Context)
+   with Pre => Ctx.W.Heard /= null
+   is
+      Key : constant String := Fabula.Args.Word (Ctx.A, Key_Capture);
+   begin
+      Fabula.Check.Is_True
+        (Ctx.R,
+         Tabula_World.Complained
+           (Ctx.W.Heard.all, To_String (Ctx.W.Label), Key),
+         "the listener heard no complaint from "
+         & To_String (Ctx.W.Label)
+         & " that names "
+         & Key
+         & "; it heard:"
+         & Tabula_World.Warnings_Text (Ctx.W.Heard.all));
+   end Find_Heard;
+
    procedure Execute_Check (A : Check_Action; Ctx : in out Step_Context) is
    begin
       case A is
-         when A_Check_Loaded    =>
+         when A_Check_Loaded        =>
             Expect_Status (Ctx, Tabula.Config.Loaded);
 
-         when A_Check_Malformed =>
+         when A_Check_Malformed     =>
             Expect_Status (Ctx, Tabula.Config.Malformed);
             Fabula.Check.Is_True
               (Ctx.R, Length (Ctx.W.Error) > 0, "the parser said nothing");
 
-         when A_Check_Missing   =>
+         when A_Check_Missing       =>
             Expect_Status (Ctx, Tabula.Config.Missing);
 
-         when A_Check_Silent    =>
+         when A_Check_Silent        =>
             Fabula.Check.Is_True
               (Ctx.R,
                Tabula_World.Silent,
                "warned:" & Tabula_World.Warnings_Text);
 
-         when A_Check_Warned    =>
+         when A_Check_Warned        =>
             Find_Complaint (Ctx);
+
+         when A_Check_Heard         =>
+            Find_Heard (Ctx);
+
+         when A_Check_Heard_Nothing =>
+            Fabula.Check.Is_True
+              (Ctx.R,
+               Tabula_World.Silent (Ctx.W.Heard.all),
+               "the listener heard:"
+               & Tabula_World.Warnings_Text (Ctx.W.Heard.all));
       end case;
    end Execute_Check;
 
@@ -216,43 +282,52 @@ package body Tabula_Steps.Configs is
    use Flow.Machines;
    use Flow.Op;
 
-   Parse_Doc       : constant Ev := (Kind => E_Parse_Doc);
-   Load_File       : constant Ev := (Kind => E_Load_File);
-   Load_Missing    : constant Ev := (Kind => E_Load_Missing);
-   Load_Saved      : constant Ev := (Kind => E_Load_Saved);
-   Given_Config    : constant Ev := (Kind => E_Given);
-   Take_Section    : constant Ev := (Kind => E_Take_Section);
-   Check_Loaded    : constant Ev := (Kind => E_Check_Loaded);
-   Check_Malformed : constant Ev := (Kind => E_Check_Malformed);
-   Check_Missing   : constant Ev := (Kind => E_Check_Missing);
-   Check_Silent    : constant Ev := (Kind => E_Check_Silent);
-   Check_Warned    : constant Ev := (Kind => E_Check_Warned);
+   Parse_Doc           : constant Ev := (Kind => E_Parse_Doc);
+   Parse_Heard_Doc     : constant Ev := (Kind => E_Parse_Heard);
+   Load_File           : constant Ev := (Kind => E_Load_File);
+   Load_Missing        : constant Ev := (Kind => E_Load_Missing);
+   Load_Saved          : constant Ev := (Kind => E_Load_Saved);
+   Given_Config        : constant Ev := (Kind => E_Given);
+   Take_Section        : constant Ev := (Kind => E_Take_Section);
+   Check_Loaded        : constant Ev := (Kind => E_Check_Loaded);
+   Check_Malformed     : constant Ev := (Kind => E_Check_Malformed);
+   Check_Missing       : constant Ev := (Kind => E_Check_Missing);
+   Check_Silent        : constant Ev := (Kind => E_Check_Silent);
+   Check_Warned        : constant Ev := (Kind => E_Check_Warned);
+   Check_Heard         : constant Ev := (Kind => E_Check_Heard);
+   Check_Heard_Nothing : constant Ev := (Kind => E_Check_Heard_Nothing);
 
    --!format off
    Table : constant Transition_Table :=
-     [Unparsed + Parse_Doc       (Doc_Given)  / A_Parse           >= Given,
-      Unparsed + Parse_Doc                    / A_Refuse_Doc      >= Unparsed,
-      Unparsed + Load_File       (File_Named) / A_Load            >= Given,
-      Unparsed + Load_File                    / A_Refuse_File     >= Unparsed,
-      Unparsed + Load_Missing                 / A_Load_Missing    >= Given,
-      Unparsed + Load_Saved  (Document_Saved) / A_Load_Saved      >= Given,
-      Unparsed + Load_Saved                   / A_Refuse_Unsaved  >= Unparsed,
+     [Unparsed + Parse_Doc           (Doc_Given)      / A_Parse               >= Given,
+      Unparsed + Parse_Doc                            / A_Refuse_Doc          >= Unparsed,
+      Unparsed + Parse_Heard_Doc     (Doc_Given)      / A_Parse_Heard         >= Given,
+      Unparsed + Parse_Heard_Doc                      / A_Refuse_Doc          >= Unparsed,
+      Unparsed + Load_File           (File_Named)     / A_Load                >= Given,
+      Unparsed + Load_File                            / A_Refuse_File         >= Unparsed,
+      Unparsed + Load_Missing                         / A_Load_Missing        >= Given,
+      Unparsed + Load_Saved          (Document_Saved) / A_Load_Saved          >= Given,
+      Unparsed + Load_Saved                           / A_Refuse_Unsaved      >= Unparsed,
 
-      Given    + Given_Config    (Loaded)     / A_Nothing         >= Parsed,
-      Given    + Given_Config                 / A_Nothing         >= Refused,
+      Given    + Given_Config        (Loaded)         / A_Nothing             >= Parsed,
+      Given    + Given_Config                         / A_Nothing             >= Refused,
 
-      Parsed   + Take_Section                 / A_Take_Section    >= Parsed,
+      Parsed   + Take_Section                         / A_Take_Section        >= Parsed,
 
-      Parsed   + Check_Loaded                 / A_Check_Loaded    >= Parsed,
-      Parsed   + Check_Malformed              / A_Check_Malformed >= Parsed,
-      Parsed   + Check_Missing                / A_Check_Missing   >= Parsed,
-      Parsed   + Check_Silent                 / A_Check_Silent    >= Parsed,
-      Parsed   + Check_Warned                 / A_Check_Warned    >= Parsed,
-      Refused  + Check_Loaded                 / A_Check_Loaded    >= Refused,
-      Refused  + Check_Malformed              / A_Check_Malformed >= Refused,
-      Refused  + Check_Missing                / A_Check_Missing   >= Refused,
-      Refused  + Check_Silent                 / A_Check_Silent    >= Refused,
-      Refused  + Check_Warned                 / A_Check_Warned    >= Refused];
+      Parsed   + Check_Loaded                         / A_Check_Loaded        >= Parsed,
+      Parsed   + Check_Malformed                      / A_Check_Malformed     >= Parsed,
+      Parsed   + Check_Missing                        / A_Check_Missing       >= Parsed,
+      Parsed   + Check_Silent                         / A_Check_Silent        >= Parsed,
+      Parsed   + Check_Warned                         / A_Check_Warned        >= Parsed,
+      Parsed   + Check_Heard         (Listening)      / A_Check_Heard         >= Parsed,
+      Parsed   + Check_Heard                          / A_Refuse_Unheard      >= Parsed,
+      Parsed   + Check_Heard_Nothing (Listening)      / A_Check_Heard_Nothing >= Parsed,
+      Parsed   + Check_Heard_Nothing                  / A_Refuse_Unheard      >= Parsed,
+      Refused  + Check_Loaded                         / A_Check_Loaded        >= Refused,
+      Refused  + Check_Malformed                      / A_Check_Malformed     >= Refused,
+      Refused  + Check_Missing                        / A_Check_Missing       >= Refused,
+      Refused  + Check_Silent                         / A_Check_Silent        >= Refused,
+      Refused  + Check_Warned                         / A_Check_Warned        >= Refused];
    --!format on
 
    Current : State := Unparsed;
