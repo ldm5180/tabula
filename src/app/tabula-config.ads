@@ -25,9 +25,10 @@ package Tabula.Config is
 
    --  Read Path.  Missing means no such file (Root is empty; commonly
    --  fine -- the caller keeps its defaults and says so); Malformed
-   --  means the parser refused (Error carries its message; Root is
-   --  empty).  Label prefixes every warning this table and its sections
-   --  later emit (e.g. "feed config").
+   --  means the parser refused (Error carries where and why, "3:1:
+   --  invalid syntax", or its message alone when it names no place;
+   --  Root is empty).  Label prefixes every warning this table and its
+   --  sections later emit (e.g. "feed config").
    procedure Load
      (Path   : String;
       Label  : String;
@@ -53,8 +54,9 @@ package Tabula.Config is
 
    procedure Warn (L : in out Listener; Message : String) is abstract;
 
-   --  What came of a Load or Parse: its status, and the parser's message
-   --  when Malformed (else empty).
+   --  What came of a Load or Parse: its status, and when Malformed the
+   --  parser's refusal, its line and column before its message as Load's
+   --  Error carries it (else empty).
    type Load_Outcome is record
       Status : Load_Status := Loaded;
       Error  : Ada.Strings.Unbounded.Unbounded_String;

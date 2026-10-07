@@ -95,7 +95,8 @@ package body Tabula.Config is
          Root.Source := Read.Source;
          Result := (Loaded, Null_Unbounded_String);
       else
-         Result := (Malformed, Read.Read.Message);
+         Result :=
+           (Malformed, To_Unbounded_String (TOML.Format_Error (Read.Read)));
       end if;
    end Wrap;
 

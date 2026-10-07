@@ -1,5 +1,7 @@
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 
+with GNAT.OS_Lib;
+
 with AUnit.Assertions; use AUnit.Assertions;
 
 with Tabula.Config; use Tabula.Config;
@@ -106,10 +108,55 @@ package body Tabula_Config_Load_Tests is
    procedure Test_Lone_Return (T : in out AUnit.Test_Cases.Test_Case'Class) is
       pragma Unreferenced (T);
    begin
-      Check ("a = 1" & CR, "MALFORMED invalid stray carriage return");
+      Check ("a = 1" & CR, "MALFORMED 1:5: invalid stray carriage return");
       Check
-        ("start = 2020-01-01" & CR, "MALFORMED invalid stray carriage return");
+        ("start = 2020-01-01" & CR,
+         "MALFORMED 1:18: invalid stray carriage return");
    end Test_Lone_Return;
+
+   --  A refusal names the line and the column the parser stopped at,
+   --  before its message, every way a document is read.  A document
+   --  that ends without a line end is refused as the same document with
+   --  one is: where the parser meets the end, the line after its last.
+   procedure Test_Refusal_Place (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Broken : constant String := "a = 1" & LF & "b = 2" & LF & "= 3";
+   begin
+      Check (Broken & LF, "MALFORMED 3:1: invalid syntax");
+      Check (Broken, "MALFORMED 3:1: invalid syntax");
+      Check ("[run" & LF, "MALFORMED 2:1: invalid syntax");
+      Check ("[run", "MALFORMED 2:1: invalid syntax");
+      Check ("n = ""x", "MALFORMED 2:1: invalid string");
+      Check ("n = ""x" & LF, "MALFORMED 2:1: invalid string");
+      Check
+        ("not = = toml",
+         "MALFORMED 1:6: invalid (or not supported yet) syntax");
+   end Test_Refusal_Place;
+
+   --  A file the parser cannot open has no place to name: its refusal
+   --  is the parser's message alone, as it always was, both forms.
+   procedure Test_Unread_File (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Path   : constant String := Scratch ("unreadable.toml");
+      Root   : Table;
+      Result : Load_Outcome;
+      Heard  : aliased Recorder;
+   begin
+      Write_File (Path, "a = 1" & LF);
+      GNAT.OS_Lib.Set_Non_Readable (Path);
+      Load (Path, "load test", null, Root, Result.Status, Result.Error);
+      Assert
+        (Begins_With (To_String (Result.Error), "cannot open " & Path & ": "),
+         "the warner's form: " & To_String (Result.Error));
+      Load (Path, "load test", Heard'Access, Root, Result);
+      GNAT.OS_Lib.Set_Readable (Path);
+      Assert
+        (Result.Status = Malformed
+         and then Begins_With
+                    (To_String (Result.Error), "cannot open " & Path & ": "),
+         "the listener's form: " & To_String (Result.Error));
+   end Test_Unread_File;
 
    procedure Test_Malformed (T : in out AUnit.Test_Cases.Test_Case'Class) is
       pragma Unreferenced (T);
@@ -149,6 +196,10 @@ package body Tabula_Config_Load_Tests is
         (T, Test_Calendar_Ends'Access, "a date or time that ends the text");
       Register_Routine
         (T, Test_Lone_Return'Access, "a lone carriage return at the end");
+      Register_Routine
+        (T, Test_Refusal_Place'Access, "a refusal names its line and column");
+      Register_Routine
+        (T, Test_Unread_File'Access, "a file the parser cannot open");
    end Register_Tests;
 
    overriding
