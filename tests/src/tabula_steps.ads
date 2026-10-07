@@ -62,6 +62,8 @@ package Tabula_Steps is
       E_Visit_Scaled,
       E_Visit_Sections,
       E_Visit_Keys,
+      E_Visit_String_Lists,
+      E_Visit_Scaled_Lists,
       E_Check_Items,
       E_New_Document,
       E_Write_Comment,
@@ -255,6 +257,9 @@ package Tabula_Steps is
                                                                 >= E_Visit_Scaled,
       Step ("the sections of {word} are visited")               >= E_Visit_Sections,
       Step ("the keys are visited")                             >= E_Visit_Keys,
+      Step ("the lists of {word} are visited as strings")       >= E_Visit_String_Lists,
+      Step ("the lists of {word} are visited as numbers at a scale of {int}")
+                                                                >= E_Visit_Scaled_Lists,
       Step ("the items were {string}")                          >= E_Check_Items,
       Step ("a new document")                                   >= E_New_Document,
       Step ("the comment {string} is written")                  >= E_Write_Comment,

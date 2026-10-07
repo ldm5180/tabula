@@ -20,6 +20,8 @@ package body Tabula_Steps.Walks is
       A_Visit_Scaled,
       A_Visit_Sections,
       A_Visit_Keys,
+      A_Visit_String_Lists,
+      A_Visit_Scaled_Lists,
       A_Again,
       A_Refuse_No_Table,
       A_Refuse_Scale,
@@ -27,6 +29,8 @@ package body Tabula_Steps.Walks is
 
    subtype Walk_Action is Action_Kind range A_Walk_Strings .. A_Walk_Keys;
    subtype Visit_Action is Action_Kind range A_Visit_Strings .. A_Visit_Keys;
+   subtype List_Action is
+     Action_Kind range A_Visit_String_Lists .. A_Visit_Scaled_Lists;
 
    Key_Capture   : constant := 1;
    Scale_Capture : constant := 2;
@@ -138,6 +142,32 @@ package body Tabula_Steps.Walks is
       Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
    end Gather;
 
+   --  The lists of the grid the step names, each list's entries of Kind
+   --  (numbers at Scale) gathered by a list visitor of the scenario's
+   --  own, whose items are then the world's.
+   procedure Visit_Lists
+     (Ctx   : in out Step_Context;
+      Kind  : Tabula_World.Entry_Kind;
+      Scale : Positive := 1)
+   is
+      G : Tabula_World.List_Gatherer (Kind, Scale);
+   begin
+      Tabula.Config.Each_List (Ctx.W.Root, Key (Ctx), G);
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Visit_Lists;
+
+   procedure Gather_Lists (A : List_Action; Ctx : in out Step_Context) is
+   begin
+      case A is
+         when A_Visit_String_Lists =>
+            Visit_Lists (Ctx, Tabula_World.Strings);
+
+         when A_Visit_Scaled_Lists =>
+            Visit_Lists
+              (Ctx, Tabula_World.Numbers, Count (Ctx, Scale_Capture));
+      end case;
+   end Gather_Lists;
+
    procedure Execute
      (A : Action_Kind; Ctx : in out Step_Context; Evt : Step_Kind) is
    begin
@@ -150,6 +180,9 @@ package body Tabula_Steps.Walks is
 
          when Visit_Action      =>
             Gather (A, Ctx);
+
+         when List_Action       =>
+            Gather_Lists (A, Ctx);
 
          when A_Again           =>
             Then_Take (Ctx, Evt);
@@ -182,45 +215,54 @@ package body Tabula_Steps.Walks is
    use Flow.Machines;
    use Flow.Op;
 
-   Walk_Strings   : constant Ev := (Kind => E_Walk_Strings);
-   Walk_Scaled    : constant Ev := (Kind => E_Walk_Scaled);
-   Walk_Sections  : constant Ev := (Kind => E_Walk_Sections);
-   Walk_Keys      : constant Ev := (Kind => E_Walk_Keys);
-   Check_Items    : constant Ev := (Kind => E_Check_Items);
-   Visit_Strings  : constant Ev := (Kind => E_Visit_Strings);
-   Visit_Scaled   : constant Ev := (Kind => E_Visit_Scaled);
-   Visit_Sections : constant Ev := (Kind => E_Visit_Sections);
-   Visit_Keys     : constant Ev := (Kind => E_Visit_Keys);
+   Walk_Strings       : constant Ev := (Kind => E_Walk_Strings);
+   Walk_Scaled        : constant Ev := (Kind => E_Walk_Scaled);
+   Walk_Sections      : constant Ev := (Kind => E_Walk_Sections);
+   Walk_Keys          : constant Ev := (Kind => E_Walk_Keys);
+   Check_Items        : constant Ev := (Kind => E_Check_Items);
+   Visit_Strings      : constant Ev := (Kind => E_Visit_Strings);
+   Visit_Scaled       : constant Ev := (Kind => E_Visit_Scaled);
+   Visit_Sections     : constant Ev := (Kind => E_Visit_Sections);
+   Visit_Keys         : constant Ev := (Kind => E_Visit_Keys);
+   Visit_String_Lists : constant Ev := (Kind => E_Visit_String_Lists);
+   Visit_Scaled_Lists : constant Ev := (Kind => E_Visit_Scaled_Lists);
 
    --!format off
    Table : constant Transition_Table :=
-     [Unwalked + Walk_Strings   (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Strings                 / A_Walk_Strings    >= Walked,
-      Unwalked + Walk_Scaled    (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Scaled    (Scale_Given) / A_Walk_Scaled     >= Walked,
-      Unwalked + Walk_Scaled                  / A_Refuse_Scale    >= Unwalked,
-      Unwalked + Walk_Sections  (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Sections                / A_Walk_Sections   >= Walked,
-      Unwalked + Walk_Keys      (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Keys                    / A_Walk_Keys       >= Walked,
-      Unwalked + Visit_Strings  (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Visit_Strings                / A_Visit_Strings   >= Walked,
-      Unwalked + Visit_Scaled   (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Visit_Scaled   (Scale_Given) / A_Visit_Scaled    >= Walked,
-      Unwalked + Visit_Scaled                 / A_Refuse_Scale    >= Unwalked,
-      Unwalked + Visit_Sections (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Visit_Sections               / A_Visit_Sections  >= Walked,
-      Unwalked + Visit_Keys     (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Visit_Keys                   / A_Visit_Keys      >= Walked,
-      Walked   + Walk_Strings                 / A_Again           >= Unwalked,
-      Walked   + Walk_Scaled                  / A_Again           >= Unwalked,
-      Walked   + Walk_Sections                / A_Again           >= Unwalked,
-      Walked   + Walk_Keys                    / A_Again           >= Unwalked,
-      Walked   + Visit_Strings                / A_Again           >= Unwalked,
-      Walked   + Visit_Scaled                 / A_Again           >= Unwalked,
-      Walked   + Visit_Sections               / A_Again           >= Unwalked,
-      Walked   + Visit_Keys                   / A_Again           >= Unwalked,
-      Walked   + Check_Items                  / A_Check_Items     >= Walked];
+     [Unwalked + Walk_Strings       (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Walk_Strings                     / A_Walk_Strings       >= Walked,
+      Unwalked + Walk_Scaled        (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Walk_Scaled        (Scale_Given) / A_Walk_Scaled        >= Walked,
+      Unwalked + Walk_Scaled                      / A_Refuse_Scale       >= Unwalked,
+      Unwalked + Walk_Sections      (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Walk_Sections                    / A_Walk_Sections      >= Walked,
+      Unwalked + Walk_Keys          (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Walk_Keys                        / A_Walk_Keys          >= Walked,
+      Unwalked + Visit_Strings      (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_Strings                    / A_Visit_Strings      >= Walked,
+      Unwalked + Visit_Scaled       (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_Scaled       (Scale_Given) / A_Visit_Scaled       >= Walked,
+      Unwalked + Visit_Scaled                     / A_Refuse_Scale       >= Unwalked,
+      Unwalked + Visit_Sections     (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_Sections                   / A_Visit_Sections     >= Walked,
+      Unwalked + Visit_Keys         (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_Keys                       / A_Visit_Keys         >= Walked,
+      Unwalked + Visit_String_Lists (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_String_Lists               / A_Visit_String_Lists >= Walked,
+      Unwalked + Visit_Scaled_Lists (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_Scaled_Lists (Scale_Given) / A_Visit_Scaled_Lists >= Walked,
+      Unwalked + Visit_Scaled_Lists               / A_Refuse_Scale       >= Unwalked,
+      Walked   + Walk_Strings                     / A_Again              >= Unwalked,
+      Walked   + Walk_Scaled                      / A_Again              >= Unwalked,
+      Walked   + Walk_Sections                    / A_Again              >= Unwalked,
+      Walked   + Walk_Keys                        / A_Again              >= Unwalked,
+      Walked   + Visit_Strings                    / A_Again              >= Unwalked,
+      Walked   + Visit_Scaled                     / A_Again              >= Unwalked,
+      Walked   + Visit_Sections                   / A_Again              >= Unwalked,
+      Walked   + Visit_Keys                       / A_Again              >= Unwalked,
+      Walked   + Visit_String_Lists               / A_Again              >= Unwalked,
+      Walked   + Visit_Scaled_Lists               / A_Again              >= Unwalked,
+      Walked   + Check_Items                      / A_Check_Items        >= Walked];
    --!format on
 
    Current : State := Unwalked;

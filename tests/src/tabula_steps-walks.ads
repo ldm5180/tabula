@@ -1,7 +1,8 @@
 --  What a scenario walks in its table (sections.feature, knobs.feature,
 --  context.feature): the strings of an array, the numbers of an array at
---  a scale, the tables of an array of tables, or the table's own keys,
---  through a procedure or into a visitor, and the items checked.  A region of the registry: Offer takes this region's steps,
+--  a scale, the tables of an array of tables, the table's own keys, or
+--  the lists of a grid as strings or as numbers at a scale, through a
+--  procedure or into a visitor, and the items checked.  A region of the registry: Offer takes this region's steps,
 --  Reset starts a scenario, Phase names its state.
 
 package Tabula_Steps.Walks is

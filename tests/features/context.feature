@@ -3,7 +3,7 @@ Feature: A reader keeps what it hears in its own objects
   A reader may hand tabula objects of its own rather than procedures: a
   listener that hears what a table complains about, carried by every
   section taken from it, and a visitor that a walk hands each item to,
-  a walk of a CSV file's rows among them.
+  a walk of a CSV file's rows and of a grid's lists among them.
   What they hear and gather stays in the reader's objects, so two
   readers never share it.  What is read, walked and complained about
   is the same as through procedures.
@@ -78,6 +78,33 @@ Feature: A reader keeps what it hears in its own objects
       """
     When the keys are visited
     Then the items were "zeta,alpha,box"
+
+  Scenario: A grid of lists reads one list per option
+    Given a config labelled "pro config" heard by its own listener:
+      """toml
+      entry_targets = [[15, 25, 35], [20, 30]]
+      """
+    When the lists of entry_targets are visited as numbers at a scale of 1
+    Then the items were "[15,25,35],[20,30]"
+    And its listener heard nothing
+
+  Scenario: A flat list where a grid is read is one option
+    Given a config labelled "pro config" heard by its own listener:
+      """toml
+      custom_filters = ['skip EOM', 'skip FOMC']
+      """
+    When the lists of custom_filters are visited as strings
+    Then the items were "[skip EOM,skip FOMC]"
+    And its listener heard nothing
+
+  Scenario: A grid's entry that is not a list is complained about and skipped
+    Given a config labelled "pro config" heard by its own listener:
+      """toml
+      day_of_week = [[2, 3, 4, 5], 1]
+      """
+    When the lists of day_of_week are visited as numbers at a scale of 1
+    Then the items were "[2,3,4,5]"
+    And its listener heard day_of_week complained about
 
   Scenario: A reader's visitor gathers the rows of a CSV file
     Given a CSV file:
