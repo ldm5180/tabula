@@ -44,4 +44,11 @@ package Tabula.Config.Values is
    --  a table nor a list, walk nothing, silently.
    procedure Each_Value (T : Table; Visitor : in out Value_Visitor'Class);
 
+   --  Each_Value, handing each value to Process.
+   procedure Each_Value
+     (T       : Table;
+      Process :
+        not null access procedure
+          (Key : String; Kind : Value_Kind; Text : String; Item : Table));
+
 end Tabula.Config.Values;

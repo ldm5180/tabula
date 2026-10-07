@@ -144,4 +144,34 @@ package body Tabula.Config.Values is
       end case;
    end Each_Value;
 
+   --  The walk to a procedure: a visitor whose discriminant is the
+   --  procedure, over the walk to a visitor.
+   type Value_Process
+     (Process :
+        not null access procedure
+          (Key : String; Kind : Value_Kind; Text : String; Item : Table))
+   is limited new Value_Visitor with null record;
+
+   overriding
+   procedure Visit_Value
+     (V    : in out Value_Process;
+      Key  : String;
+      Kind : Value_Kind;
+      Text : String;
+      Item : Table) is
+   begin
+      V.Process (Key, Kind, Text, Item);
+   end Visit_Value;
+
+   procedure Each_Value
+     (T       : Table;
+      Process :
+        not null access procedure
+          (Key : String; Kind : Value_Kind; Text : String; Item : Table))
+   is
+      Visitor : Value_Process (Process);
+   begin
+      Each_Value (T, Visitor);
+   end Each_Value;
+
 end Tabula.Config.Values;

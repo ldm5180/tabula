@@ -316,6 +316,36 @@ package body Tabula_Config_Values_Tests is
       Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
    end Test_Calendar;
 
+   --  The walk to a procedure: the same values as to a visitor.
+   procedure Test_Procedure (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard : aliased Recorder;
+      Root  : Table;
+      Seen  : Unbounded_String;
+
+      procedure Take
+        (Key : String; Kind : Value_Kind; Text : String; Item : Table);
+
+      procedure Take
+        (Key : String; Kind : Value_Kind; Text : String; Item : Table) is
+      begin
+         Append (Seen, " " & Key & "=" & Kind'Image & ":" & Text);
+         Each_Value (Item, Take'Access);
+      end Take;
+   begin
+      Parse_Silently
+        ("a = 0.5" & LF & "b = [2020-01-01]" & LF & "[c]" & LF & "d = 1" & LF,
+         Heard,
+         Root);
+      Each_Value (Root, Take'Access);
+      Assert
+        (To_String (Seen)
+         = " a=A_DECIMAL:0.5 b=AN_ARRAY: =A_DATE:2020-01-01 c=A_TABLE:"
+           & " d=AN_INTEGER:1",
+         "each value, nested in turn: " & To_String (Seen));
+      Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
+   end Test_Procedure;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -328,6 +358,7 @@ package body Tabula_Config_Values_Tests is
       Register_Routine (T, Test_Loaded'Access, "a loaded file's decimals");
       Register_Routine (T, Test_Specials'Access, "nan and infinities");
       Register_Routine (T, Test_Calendar'Access, "dates, times, date-times");
+      Register_Routine (T, Test_Procedure'Access, "values to a procedure");
    end Register_Tests;
 
    overriding
