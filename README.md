@@ -31,11 +31,15 @@ keep the same spirit, and two rules hold for every part of it:
   of them (`[15, "0.0210", 0.2621]`), `Get` for a `Tabula.Date`
   or a `Tabula.Time_Of_Day` (bare `2020-01-01` / `09:30:00` or quoted;
   a day the calendar lacks is refused), `Each_String` for string
-  arrays, `Each_Section` for arrays of tables, and `Each_Key` for the
-  keys a table holds, in the file's order.  Each walker hands its items
-  to a procedure or to a visitor object of the caller's own
+  arrays, `Each_Section` for arrays of tables, `Each_List` for a list
+  of lists (a grid's options, `[[15, 25, 35], [20, 30]]`, each inner
+  list handed over as a table the keyless `Each_String` /
+  `Each_Scaled` walk; a flat list is the one option), and `Each_Key`
+  for the keys a table holds, in the file's order.  Each walker hands
+  its items to a procedure or to a visitor object of the caller's own
   (`String_Visitor`, `Scaled_Visitor`, `Section_Visitor`,
-  `Key_Visitor`, one primitive name each, so one type can be several).  Every table carries a label
+  `List_Visitor`, `Key_Visitor`, one primitive name each, so one type
+  can be several).  Every table carries a label
   and a `Warner` callback, or a `Listener` object of the caller's own,
   so complaints read like `feed config: retries is not a number in 1 ..
   Natural'Last; using default`.
@@ -135,6 +139,27 @@ end Visit_String;
 ...
 Servers : Names;
 Tabula.Config.Each_String (Root, "servers", Servers);
+```
+
+A list of lists -- `entry_targets = [[15, 25, 35], [20, 30]]`, one
+inner list per option -- hands each inner list over as a table, whose
+entries the keyless walks read; `entry_targets = [25, 35]` is read as
+the one option:
+
+```ada
+type Options is limited new Tabula.Config.List_Visitor with record
+   Count : Natural := 0;
+end record;
+
+overriding procedure Visit_List (O : in out Options; Item : Tabula.Config.Table) is
+   Targets : Numbers;  --  a Scaled_Visitor of your own
+begin
+   O.Count := O.Count + 1;
+   Tabula.Config.Each_Scaled (Item, 1_000_000, Targets);
+end Visit_List;
+...
+Grid : Options;
+Tabula.Config.Each_List (Root, "entry_targets", Grid);
 ```
 
 Write one:

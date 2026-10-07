@@ -130,8 +130,12 @@ Two rules hold for every addition:
   object: the table's warnings go to a `Tabula.Config.Listener`, and
   each walker hands its items to a visitor interface
   (`String_Visitor`, `Scaled_Visitor`, `Section_Visitor`,
-  `Key_Visitor`, `Tabula.Csv.Row_Visitor`), each with its own
-  primitive's name so one caller type can be several.  The older
+  `List_Visitor`, `Key_Visitor`, `Tabula.Csv.Row_Visitor`), each with
+  its own primitive's name so one caller type can be several.  A list
+  of lists (`Each_List`) hands each inner list over as a `Table`, not
+  a new type, so the keyless `Each_String` / `Each_Scaled` read it and
+  a reader learns no second shape; its name (key and place) rides in
+  the table, privately, for the warnings.  The older
   access-to-procedure forms stay, as thin adapters over these: a new
   callback API gets the object form first.
 

@@ -6,7 +6,7 @@ validation, proof).  What differs from the plan below is in the
 revision notes.  B8, a list of numbers at a scale, was added after
 B7 at the user's decision and is built.  B9, callbacks that carry the
 caller's state, was added after B8 on `context-callbacks`.  B10, a
-list of lists, was added after B9 on `nested-lists`.
+list of lists, was added after B9 on `nested-lists` and is built.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -443,3 +443,16 @@ procedure Each_Row
   type, so the walks a caller already knows read it, and the item's
   name (its key and place) rides in the table, private, for the
   warnings.
+  As built, in seven cycles: the shape above held.  The walk of a
+  knob's array became `Each_Item` over an array value, shared by the
+  keyed walks (`Each_Entry`) and the keyless ones (`Each_List_Entry`),
+  so a list's entries are taken by the very entry visitors a knob's
+  are.  A grid's entry that is not a list warns `non-array <key> entry
+  skipped`, as the `non-string` and `non-table` warnings read; the
+  count of places runs over it, so a later list keeps the place a
+  reader would count to (`mixed[3]`).  The keyless walk of a table
+  that is not a list walks nothing, silently.  The test fixture gained
+  a `List_Gatherer` (strings, or numbers at a scale, bracketed per
+  list), and `context.feature` three scenarios.  Nothing an existing
+  getter or walker returns or warns changed; the private `Table`
+  gained a `Name`.
