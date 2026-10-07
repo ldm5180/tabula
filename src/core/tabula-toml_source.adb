@@ -92,4 +92,13 @@ is
       return (others => <>);
    end Number_At;
 
+   function Line_Ended (Text : String) return String is
+      Ended :
+        String (1 .. Text'Length + (if Ends_Open (Text) then 1 else 0)) :=
+          [others => ASCII.LF];
+   begin
+      Ended (1 .. Text'Length) := Text;
+      return Ended;
+   end Line_Ended;
+
 end Tabula.Toml_Source;

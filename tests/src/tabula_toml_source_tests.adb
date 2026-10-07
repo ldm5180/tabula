@@ -118,6 +118,21 @@ package body Tabula_Toml_Source_Tests is
       Check ("", 1, 1, "(none)");
    end Test_Nothing;
 
+   --  A text is handed to the parser with a line feed after it when it
+   --  ends with neither a line feed nor a carriage return, and as it is
+   --  otherwise.
+   procedure Test_Line_Ended (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+   begin
+      Assert (Line_Ended ("d = 2020-01-01") = "d = 2020-01-01" & LF, "date");
+      Assert (Line_Ended ("a = 1" & LF) = "a = 1" & LF, "a line feed ends");
+      Assert
+        (Line_Ended ("a = 1" & CR & LF) = "a = 1" & CR & LF, "CR LF ends");
+      Assert (Line_Ended ("a = 1" & CR) = "a = 1" & CR, "a lone CR stays");
+      Assert (Line_Ended ("# x" & Tab) = "# x" & Tab & LF, "a tab is no end");
+      Assert (Line_Ended ("") = "", "the empty text stays empty");
+   end Test_Line_Ended;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -125,6 +140,8 @@ package body Tabula_Toml_Source_Tests is
       Register_Routine
         (T, Test_Columns'Access, "tabs, UTF-8 and line ends in columns");
       Register_Routine (T, Test_Nothing'Access, "no number at a place");
+      Register_Routine
+        (T, Test_Line_Ended'Access, "a line end after the text");
    end Register_Tests;
 
    overriding

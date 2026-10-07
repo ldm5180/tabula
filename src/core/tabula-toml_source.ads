@@ -1,4 +1,5 @@
---  Where in a TOML document's text the parser placed a number: the line
+--  A TOML document's text as the parser takes it: the text handed to
+--  the parser, and where in it the parser placed a number -- the line
 --  and column it records for each value, mapped back to the text, so a
 --  float's literal can be read as the document wrote it.  Pure, proved
 --  free of runtime errors.
@@ -40,5 +41,27 @@ is
           Number_At'Result.First in Source'Range
           and then Number_At'Result.Last
                    in Number_At'Result.First .. Source'Last);
+
+   --  Whether Text ends with neither a line feed nor a carriage return:
+   --  the parser's lexer reads past the end of a date or a time that
+   --  ends a text so, and fails.
+   function Ends_Open (Text : String) return Boolean
+   is (Text'Length > 0 and then Text (Text'Last) not in ASCII.LF | ASCII.CR);
+
+   --  The text the parser is handed for Text, from one: Text with a line
+   --  feed after it when it ends open, and Text itself otherwise.  A
+   --  document may end with a line end or not, so its meaning is the
+   --  same.  A lone carriage return at the end is left as it is: it is
+   --  refused, and a line feed after it would make it a line end the
+   --  parser accepts.
+   function Line_Ended (Text : String) return String
+   with
+     Pre  => Text'Length < Natural'Last,
+     Post =>
+       Line_Ended'Result'First = 1
+       and then Line_Ended'Result'Length
+                = Text'Length + (if Ends_Open (Text) then 1 else 0)
+       and then Line_Ended'Result (1 .. Text'Length) = Text
+       and then not Ends_Open (Line_Ended'Result);
 
 end Tabula.Toml_Source;

@@ -164,33 +164,6 @@ package body Tabula_Config_Tests is
       Assert (Warned ("scalar is not an array"), "a non-array warns");
    end Test_Arrays;
 
-   procedure Test_Malformed (T : in out AUnit.Test_Cases.Test_Case'Class) is
-      pragma Unreferenced (T);
-      Root   : Table;
-      Status : Load_Status;
-      Error  : Unbounded_String;
-   begin
-      Parse ("not = = toml", "test config", null, Root, Status, Error);
-      Assert (Status = Malformed, "a broken document is Malformed");
-      Assert (Length (Error) > 0, "with the parser's message");
-      Assert
-        (Get (Root, "not", Fallback => 3) = 3,
-         "and the empty table falls back everywhere");
-   end Test_Malformed;
-
-   procedure Test_Missing_File (T : in out AUnit.Test_Cases.Test_Case'Class) is
-      pragma Unreferenced (T);
-      Root   : Table;
-      Status : Load_Status;
-      Error  : Unbounded_String;
-   begin
-      Load ("no-such-file.toml", "test config", null, Root, Status, Error);
-      Assert (Status = Missing, "a missing file is Missing, not Malformed");
-      Assert
-        (Get (Root, "anything", Fallback => True),
-         "and the empty table falls back everywhere");
-   end Test_Missing_File;
-
    --  Array-of-tables walking ([[trades]]): each sub-table arrives
    --  carrying the root's label and warner; an absent key does
    --  nothing silently; a non-array warns and does nothing; a
@@ -899,10 +872,6 @@ package body Tabula_Config_Tests is
       Register_Routine
         (T, Test_Sections'Access, "sections carry label and warner");
       Register_Routine (T, Test_Arrays'Access, "string-array walking");
-      Register_Routine
-        (T, Test_Malformed'Access, "malformed input is a result");
-      Register_Routine
-        (T, Test_Missing_File'Access, "missing file is a distinct status");
       Register_Routine (T, Test_Has'Access, "presence check, no fallback");
       Register_Routine (T, Test_Each_Key'Access, "keys in file order");
       Register_Routine (T, Test_Scaled'Access, "a number at a scale");

@@ -7,6 +7,7 @@ with Ada.Strings.Fixed;
 with TOML.File_IO;
 
 with Tabula.Decimals;
+with Tabula.Toml_Source;
 with Tabula.Toml_Text;
 
 package body Tabula.Config is
@@ -71,10 +72,14 @@ package body Tabula.Config is
       Source : Unbounded_String;
    end record;
 
-   --  Content, parsed.
+   --  Text, parsed as it is: what the parser is handed.
+   function Parsed_Text (Text : String) return Parsed
+   is ((Read   => TOML.Load_String (Text),
+        Source => To_Unbounded_String (Text)));
+
+   --  Content, parsed, with a line end after it when it has none.
    function Parsed_Of (Content : String) return Parsed
-   is ((Read   => TOML.Load_String (Content),
-        Source => To_Unbounded_String (Content)));
+   is (Parsed_Text (Toml_Source.Line_Ended (Content)));
 
    --  What the parser read, as Root and what came of it.
    procedure Wrap
