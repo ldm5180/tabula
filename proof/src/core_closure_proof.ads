@@ -1,6 +1,7 @@
 with Tabula;
 with Tabula.Csv_Scan;
 with Tabula.Decimals;
+with Tabula.Toml_Source;
 with Tabula.Toml_Text;
 
 --  Withs every core unit so the whole SPARK closure is in gnatprove's
