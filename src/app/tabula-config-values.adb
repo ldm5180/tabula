@@ -2,9 +2,20 @@ with Ada.Strings.Fixed;
 
 with TOML;
 
+with Tabula.Toml_Source;
+with Tabula.Toml_Text;
+
 package body Tabula.Config.Values is
 
    use Ada.Strings.Unbounded;
+   use type TOML.Float_Kind;
+
+   --  What the float F is.
+   function Float_Kind_Of (F : TOML.Any_Float) return Value_Kind
+   is (case F.Kind is
+         when TOML.Regular  => A_Decimal,
+         when TOML.NaN      => Not_A_Number,
+         when TOML.Infinity => An_Infinity);
 
    --  What the value V is.
    function Kind_Of (V : TOML.TOML_Value) return Value_Kind
@@ -13,32 +24,78 @@ package body Tabula.Config.Values is
          when TOML.TOML_Array           => An_Array,
          when TOML.TOML_String          => A_Text,
          when TOML.TOML_Integer         => An_Integer,
-         when TOML.TOML_Float           => A_Decimal,
+         when TOML.TOML_Float           => Float_Kind_Of (TOML.As_Float (V)),
          when TOML.TOML_Boolean         => A_Flag,
          when TOML.TOML_Offset_Datetime => An_Offset_Datetime,
          when TOML.TOML_Local_Datetime  => A_Local_Datetime,
          when TOML.TOML_Local_Date      => A_Date,
          when TOML.TOML_Local_Time      => A_Time);
 
-   --  The text of the value V: a string as it reads, an integer as its
-   --  decimal digits, a flag as true or false.
-   function Text_Of (V : TOML.TOML_Value) return String
+   --  The decimal the literal in Source at the place P spells, or "" when
+   --  no literal is found there.
+   function Literal_Decimal
+     (Source : String; P : TOML.Source_Location) return String
+   is
+      Found : Toml_Source.Span;
+   begin
+      if Source'Length > Toml_Source.Max_Source_Length
+        or else P.Line = 0
+        or else P.Column = 0
+      then
+         return "";
+      end if;
+      Found := Toml_Source.Number_At (Source, P.Line, P.Column);
+      if not Found.Found
+        or else Found.Last - Found.First >= Toml_Text.Max_Literal_Length
+      then
+         return "";
+      end if;
+      return Toml_Text.Decimal_Of (Source (Found.First .. Found.Last));
+   end Literal_Decimal;
+
+   --  The text of the float F: its sign and its name.
+   function Special_Text (F : TOML.Any_Float) return String
+   is ((if F.Positive then "" else "-")
+       & (if F.Kind = TOML.NaN then "nan" else "inf"))
+   with Pre => F.Kind /= TOML.Regular;
+
+   --  The text of the value V, read from T: a string as it reads, an
+   --  integer as its decimal digits, a decimal as the document wrote it
+   --  (Toml_Text.Decimal_Of), a special float as its sign and name, a
+   --  flag as true or false.
+   function Text_Of (T : Table; V : TOML.TOML_Value) return String
    is (case Kind_Of (V) is
-         when A_Text     => TOML.As_String (V),
-         when An_Integer =>
+         when A_Text                     => TOML.As_String (V),
+         when An_Integer                 =>
            Ada.Strings.Fixed.Trim
              (TOML.As_Integer (V)'Image, Ada.Strings.Left),
-         when A_Flag     => (if TOML.As_Boolean (V) then "true" else "false"),
-         when others     => "");
+         when A_Decimal                  =>
+           Literal_Decimal (To_String (T.Source), TOML.Location (V)),
+         when Not_A_Number | An_Infinity => Special_Text (TOML.As_Float (V)),
+         when A_Flag                     =>
+           (if TOML.As_Boolean (V) then "true" else "false"),
+         when others                     => "");
 
-   --  Hand V, read from T under Key, to Visitor.
+   --  Hand V, read from T under Key, to Visitor; a decimal whose literal
+   --  was not found in the document's text is complained of and skipped.
    procedure Visit
      (T       : Table;
       Key     : String;
       V       : TOML.TOML_Value;
-      Visitor : in out Value_Visitor'Class) is
+      Visitor : in out Value_Visitor'Class)
+   is
+      Kind : constant Value_Kind := Kind_Of (V);
+      Text : constant String := Text_Of (T, V);
    begin
-      Visitor.Visit_Value (Key, Kind_Of (V), Text_Of (V), Within (T, V));
+      if Kind = A_Decimal and then Text = "" then
+         Complain
+           (T,
+            "the float at "
+            & TOML.Format_Location (TOML.Location (V))
+            & " could not be read as written; skipped");
+         return;
+      end if;
+      Visitor.Visit_Value (Key, Kind, Text, Within (T, V));
    end Visit;
 
    procedure Each_Value (T : Table; Visitor : in out Value_Visitor'Class) is

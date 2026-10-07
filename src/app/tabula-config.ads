@@ -286,17 +286,23 @@ private
    end record;
 
    --  Name is what a list's complaints call it: its key and its place in
-   --  the list of lists it came from; empty for any other table.
+   --  the list of lists it came from; empty for any other table.  Source
+   --  is the text of the document Value was read from, where a float's
+   --  literal is found as written.
    type Table is record
-      Value : TOML.TOML_Value := TOML.No_TOML_Value;
-      Label : Ada.Strings.Unbounded.Unbounded_String;
-      To    : Sink;
-      Name  : Ada.Strings.Unbounded.Unbounded_String;
+      Value  : TOML.TOML_Value := TOML.No_TOML_Value;
+      Label  : Ada.Strings.Unbounded.Unbounded_String;
+      To     : Sink;
+      Name   : Ada.Strings.Unbounded.Unbounded_String;
+      Source : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
    --  The value V as a table carrying From's label and where From's
    --  complaints go: how a table is taken from another.
    function Within (From : Table; V : TOML.TOML_Value) return Table;
+
+   --  One complaint from T, after its label.
+   procedure Complain (T : Table; Suffix : String);
 
    --  The entries of the table V, in the order the file wrote them.
    function Written_Entries

@@ -25,7 +25,9 @@ package body Tabula_Config_Values_Tests is
       Result : Load_Outcome;
    begin
       Parse (Content, "values config", Heard'Access, Root, Result);
-      Assert (Result.Status = Loaded, "the sample parses");
+      Assert
+        (Result.Status = Loaded,
+         "the sample parses: " & To_String (Result.Error));
    end Parse_Silently;
 
    --  What a walk of Root gathers.
@@ -117,12 +119,167 @@ package body Tabula_Config_Values_Tests is
       Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
    end Test_Nothing;
 
+   Decimal_Sample : constant String :=
+     "plain = 0.2621"
+     & LF
+     & "small = 0.02"
+     & LF
+     & "long = 0.123456789012345678"
+     & LF
+     & "trailing = 1.50"
+     & LF
+     & "grouped = 1_000.000_25"
+     & LF
+     & "signed = +2.5"
+     & LF
+     & "exponent = -1.5e-3"
+     & LF
+     & "large = 6.02E+23"
+     & LF
+     & "tabbed ="
+     & ASCII.HT
+     & "2.5"
+     & LF
+     & "list = [1.5,2.25, [-0.0]]"
+     & LF
+     & "inline = { x = 0.75 }"
+     & LF;
+
+   Decimal_Walk : constant String :=
+     "plain:A_DECIMAL:0.2621,small:A_DECIMAL:0.02,"
+     & "long:A_DECIMAL:0.123456789012345678,trailing:A_DECIMAL:1.50,"
+     & "grouped:A_DECIMAL:1000.00025,signed:A_DECIMAL:2.5,"
+     & "exponent:A_DECIMAL:-0.0015,"
+     & "large:A_DECIMAL:602000000000000000000000,tabbed:A_DECIMAL:2.5,"
+     & "list:AN_ARRAY:[:A_DECIMAL:1.5,:A_DECIMAL:2.25,"
+     & ":AN_ARRAY:[:A_DECIMAL:-0.0]],"
+     & "inline:A_TABLE:{x:A_DECIMAL:0.75}";
+
+   --  A float with digits is a decimal whose text is the document's
+   --  literal as a plain decimal, exactly: every digit written, none a
+   --  binary double would add or lose.
+   procedure Test_Decimals (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard : aliased Recorder;
+      Root  : Table;
+   begin
+      Parse_Silently (Decimal_Sample, Heard, Root);
+      Assert
+        (Walked (Root) = Decimal_Walk,
+         "each decimal as written: " & Walked (Root));
+      Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
+   end Test_Decimals;
+
+   --  A decimal's text reads back as the very float the parser read.
+   type Round_Trip is limited new Value_Visitor with record
+      From  : Table;
+      Fails : Unbounded_String;
+   end record;
+
+   overriding
+   procedure Visit_Value
+     (V    : in out Round_Trip;
+      Key  : String;
+      Kind : Value_Kind;
+      Text : String;
+      Item : Table);
+
+   overriding
+   procedure Visit_Value
+     (V    : in out Round_Trip;
+      Key  : String;
+      Kind : Value_Kind;
+      Text : String;
+      Item : Table)
+   is
+      pragma Unreferenced (Item);
+   begin
+      if Kind = A_Decimal
+        and then Long_Float'Value (Text) /= Get (V.From, Key, Long_Float'Last)
+      then
+         Append (V.Fails, " " & Key & "=" & Text);
+      end if;
+   end Visit_Value;
+
+   procedure Test_Round_Trip (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard : aliased Recorder;
+      Trip  : Round_Trip;
+   begin
+      Parse_Silently (Decimal_Sample, Heard, Trip.From);
+      Each_Value (Trip.From, Trip);
+      Assert
+        (To_String (Trip.Fails) = "",
+         "every decimal reads back as parsed:" & To_String (Trip.Fails));
+   end Test_Round_Trip;
+
+   --  A file loaded keeps its text, so its decimals read as written,
+   --  CR LF line ends among them.
+   procedure Test_Loaded (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Path   : constant String := Scratch ("values.toml");
+      Heard  : aliased Recorder;
+      Root   : Table;
+      Result : Load_Outcome;
+   begin
+      Write_File
+        (Path,
+         "a = 0.10"
+         & ASCII.CR
+         & LF
+         & "b = ["
+         & ASCII.CR
+         & LF
+         & "2.5e1]"
+         & ASCII.CR
+         & LF);
+      Load (Path, "values file", Heard'Access, Root, Result);
+      Assert (Result.Status = Loaded, "the file loads");
+      Assert
+        (Walked (Root) = "a:A_DECIMAL:0.10,b:AN_ARRAY:[:A_DECIMAL:25]",
+         "its decimals as written: " & Walked (Root));
+      Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
+   end Test_Loaded;
+
+   --  A float that is not a number, and an infinite one, are kinds of
+   --  their own, their text the value's sign and name.
+   procedure Test_Specials (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard : aliased Recorder;
+      Root  : Table;
+   begin
+      Parse_Silently
+        ("a = nan"
+         & LF
+         & "b = -nan"
+         & LF
+         & "c = +inf"
+         & LF
+         & "d = -inf"
+         & LF
+         & "e = inf"
+         & LF,
+         Heard,
+         Root);
+      Assert
+        (Walked (Root)
+         = "a:NOT_A_NUMBER:nan,b:NOT_A_NUMBER:-nan,c:AN_INFINITY:inf,"
+           & "d:AN_INFINITY:-inf,e:AN_INFINITY:inf",
+         "the special floats: " & Walked (Root));
+      Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
+   end Test_Specials;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
       Register_Routine (T, Test_Scalars'Access, "values in file order");
       Register_Routine (T, Test_Nesting'Access, "tables and lists in turn");
       Register_Routine (T, Test_Nothing'Access, "nothing to walk");
+      Register_Routine (T, Test_Decimals'Access, "a decimal as written");
+      Register_Routine
+        (T, Test_Round_Trip'Access, "a decimal's text reads back");
+      Register_Routine (T, Test_Loaded'Access, "a loaded file's decimals");
+      Register_Routine (T, Test_Specials'Access, "nan and infinities");
    end Register_Tests;
 
    overriding

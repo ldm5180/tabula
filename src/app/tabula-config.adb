@@ -1,5 +1,7 @@
 with Ada.Containers.Generic_Array_Sort;
 with Ada.Directories;
+with Ada.IO_Exceptions;
+with Ada.Streams.Stream_IO;
 with Ada.Strings.Fixed;
 
 with TOML.File_IO;
@@ -25,7 +27,6 @@ package body Tabula.Config is
       end if;
    end Tell;
 
-   --  One complaint from T, after its label.
    procedure Complain (T : Table; Suffix : String) is
    begin
       Tell (T.To, To_String (T.Label) & ": " & Suffix);
@@ -51,33 +52,104 @@ package body Tabula.Config is
 
    --  The empty table, labelled Label, complaining to To.
    function Empty (Label : String; To : Sink) return Table
-   is ((Value => TOML.No_TOML_Value,
-        Label => To_Unbounded_String (Label),
-        To    => To,
-        Name  => Null_Unbounded_String));
+   is ((Value  => TOML.No_TOML_Value,
+        Label  => To_Unbounded_String (Label),
+        To     => To,
+        Name   => Null_Unbounded_String,
+        Source => Null_Unbounded_String));
 
    function Within (From : Table; V : TOML.TOML_Value) return Table
-   is ((Value => V,
-        Label => From.Label,
-        To    => From.To,
-        Name  => Null_Unbounded_String));
+   is ((Value  => V,
+        Label  => From.Label,
+        To     => From.To,
+        Name   => Null_Unbounded_String,
+        Source => From.Source));
+
+   --  What the parser read, and the text it read it from.
+   type Parsed is record
+      Read   : TOML.Read_Result;
+      Source : Unbounded_String;
+   end record;
+
+   --  Content, parsed.
+   function Parsed_Of (Content : String) return Parsed
+   is ((Read   => TOML.Load_String (Content),
+        Source => To_Unbounded_String (Content)));
 
    --  What the parser read, as Root and what came of it.
    procedure Wrap
-     (Read   : TOML.Read_Result;
+     (Read   : Parsed;
       Label  : String;
       To     : Sink;
       Root   : out Table;
       Result : out Load_Outcome) is
    begin
       Root := Empty (Label, To);
-      if Read.Success then
-         Root.Value := Read.Value;
+      if Read.Read.Success then
+         Root.Value := Read.Read.Value;
+         Root.Source := Read.Source;
          Result := (Loaded, Null_Unbounded_String);
       else
-         Result := (Malformed, Read.Message);
+         Result := (Malformed, Read.Read.Message);
       end if;
    end Wrap;
+
+   --  What a file's text is read in.
+   Block_Size : constant := 65_536;
+
+   --  Block, bytes read from a file, as text.
+   function Text_Of_Block
+     (Block : Ada.Streams.Stream_Element_Array) return String
+   is
+      use type Ada.Streams.Stream_Element_Offset;
+      Text : String (1 .. Block'Length);
+   begin
+      for I in Text'Range loop
+         Text (I) :=
+           Character'Val
+             (Block (Block'First + Ada.Streams.Stream_Element_Offset (I - 1)));
+      end loop;
+      return Text;
+   end Text_Of_Block;
+
+   --  The whole text of the file at Path.  Raises as opening or reading
+   --  it does, the file closed.
+   function Text_Of_File (Path : String) return Unbounded_String is
+      use Ada.Streams;
+      File  : Stream_IO.File_Type;
+      Block : Stream_Element_Array (1 .. Block_Size);
+      Last  : Stream_Element_Offset;
+      Text  : Unbounded_String;
+   begin
+      Stream_IO.Open (File, Stream_IO.In_File, Path);
+      loop
+         Stream_IO.Read (File, Block, Last);
+         exit when Last < Block'First;
+         Append (Text, Text_Of_Block (Block (Block'First .. Last)));
+      end loop;
+      Stream_IO.Close (File);
+      return Text;
+   exception
+      when others =>
+         if Stream_IO.Is_Open (File) then
+            Stream_IO.Close (File);
+         end if;
+         raise;
+   end Text_Of_File;
+
+   --  The file at Path, parsed from its text; when the text cannot be
+   --  read, as the parser reads the file, which says why.
+   function Parsed_File (Path : String) return Parsed is
+   begin
+      return Parsed_Of (To_String (Text_Of_File (Path)));
+   exception
+      when
+        Ada.IO_Exceptions.Name_Error
+        | Ada.IO_Exceptions.Use_Error
+        | Ada.IO_Exceptions.Device_Error
+      =>
+         return (TOML.File_IO.Load_File (Path), Null_Unbounded_String);
+   end Parsed_File;
 
    --  The one Load: the file at Path, complaining to To.
    procedure Load_To
@@ -92,7 +164,7 @@ package body Tabula.Config is
          Result := (Missing, Null_Unbounded_String);
          return;
       end if;
-      Wrap (TOML.File_IO.Load_File (Path), Label, To, Root, Result);
+      Wrap (Parsed_File (Path), Label, To, Root, Result);
    end Load_To;
 
    --  Result as the status and message the warner's forms return.
@@ -133,7 +205,7 @@ package body Tabula.Config is
    is
       Result : Load_Outcome;
    begin
-      Wrap (TOML.Load_String (Content), Label, (Warn, null), Root, Result);
+      Wrap (Parsed_Of (Content), Label, (Warn, null), Root, Result);
       Split (Result, Status, Error);
    end Parse;
 
@@ -154,7 +226,7 @@ package body Tabula.Config is
       Root     : out Table;
       Result   : out Load_Outcome) is
    begin
-      Wrap (TOML.Load_String (Content), Label, Heard (Heard_By), Root, Result);
+      Wrap (Parsed_Of (Content), Label, Heard (Heard_By), Root, Result);
    end Parse;
 
    function Section (Root : Table; Name : String) return Table is
