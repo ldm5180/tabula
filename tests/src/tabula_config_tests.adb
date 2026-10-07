@@ -841,6 +841,50 @@ package body Tabula_Config_Tests is
          "its skipped entry, by its key: " & Warnings_Text (Heard));
    end Test_Flat_List;
 
+   --  The grid walk and the keyless walks to a procedure: the same lists
+   --  and entries as to a visitor.
+   procedure Test_List_Procedures (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Root : Table;
+      Seen : Unbounded_String;
+
+      procedure Number (Item : Long_Long_Integer);
+      procedure Text (Item : String);
+      procedure Numbers (Item : Table);
+      procedure Texts (Item : Table);
+
+      procedure Number (Item : Long_Long_Integer) is
+      begin
+         Append (Seen, Item'Image);
+      end Number;
+
+      procedure Text (Item : String) is
+      begin
+         Append (Seen, " " & Item);
+      end Text;
+
+      procedure Numbers (Item : Table) is
+      begin
+         Each_Scaled (Item, 1, Number'Access);
+         Append (Seen, ";");
+      end Numbers;
+
+      procedure Texts (Item : Table) is
+      begin
+         Each_String (Item, Text'Access);
+         Append (Seen, ";");
+      end Texts;
+   begin
+      Parse_Sample (Grid_Sample, Root);
+      Each_List (Root, "targets", Numbers'Access);
+      Each_List (Root, "flat_filters", Texts'Access);
+      Assert
+        (To_String (Seen) = " 15 25 35; 20 30; skip EOM skip FOMC;",
+         "each list's entries, list by list: " & To_String (Seen));
+      Assert (Silent, "silently: " & Warnings_Text);
+   end Test_List_Procedures;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -886,6 +930,8 @@ package body Tabula_Config_Tests is
         (T, Test_List_Skips'Access, "a grid's entry that is not a list");
       Register_Routine
         (T, Test_Flat_List'Access, "a flat list read as a grid");
+      Register_Routine
+        (T, Test_List_Procedures'Access, "a grid's lists to procedures");
    end Register_Tests;
 
    overriding

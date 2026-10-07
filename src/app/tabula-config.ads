@@ -258,6 +258,22 @@ package Tabula.Config is
    procedure Each_Scaled
      (List : Table; Scale : Positive; Visitor : in out Scaled_Visitor'Class);
 
+   --  Each_List, handing each list to Process.
+   procedure Each_List
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : Table));
+
+   --  The keyless Each_String, handing each string to Process.
+   procedure Each_String
+     (List : Table; Process : not null access procedure (Item : String));
+
+   --  The keyless Each_Scaled, handing each number to Process.
+   procedure Each_Scaled
+     (List    : Table;
+      Scale   : Positive;
+      Process : not null access procedure (Item : Long_Long_Integer));
+
 private
 
    type Listener_Access is access all Listener'Class;

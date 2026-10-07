@@ -737,6 +737,16 @@ package body Tabula.Config is
       V.Process (Key);
    end Visit_Key;
 
+   type List_Process (Process : not null access procedure (Item : Table)) is
+      limited new List_Visitor
+   with null record;
+
+   overriding
+   procedure Visit_List (V : in out List_Process; Item : Table) is
+   begin
+      V.Process (Item);
+   end Visit_List;
+
    procedure Each_String
      (T       : Table;
       Key     : String;
@@ -775,5 +785,33 @@ package body Tabula.Config is
    begin
       Each_Key (T, Visitor);
    end Each_Key;
+
+   procedure Each_List
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : Table))
+   is
+      Visitor : List_Process (Process);
+   begin
+      Each_List (T, Key, Visitor);
+   end Each_List;
+
+   procedure Each_String
+     (List : Table; Process : not null access procedure (Item : String))
+   is
+      Visitor : String_Process (Process);
+   begin
+      Each_String (List, Visitor);
+   end Each_String;
+
+   procedure Each_Scaled
+     (List    : Table;
+      Scale   : Positive;
+      Process : not null access procedure (Item : Long_Long_Integer))
+   is
+      Visitor : Scaled_Process (Process);
+   begin
+      Each_Scaled (List, Scale, Visitor);
+   end Each_Scaled;
 
 end Tabula.Config;
