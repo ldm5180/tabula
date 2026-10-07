@@ -93,4 +93,23 @@ is
    --  T as a TOML local time, HH:MM:SS.
    function Time_Text (T : Time_Of_Day) return String;
 
+   --  A thousandth of a second, the finest fraction the parser keeps: it
+   --  cuts a finer one, as TOML allows.
+   subtype Millisecond_Number is Natural range 0 .. 999;
+
+   --  T and Millisecond as a TOML local time: HH:MM:SS, then .mmm when
+   --  Millisecond is not zero.
+   function Time_Text
+     (T : Time_Of_Day; Millisecond : Millisecond_Number) return String;
+
+   --  The furthest an offset date-time's offset may be from UTC, in
+   --  minutes: 23:59.
+   Max_Offset : constant := 23 * 60 + 59;
+
+   subtype Offset_Minutes is Integer range -Max_Offset .. Max_Offset;
+
+   --  Offset as a TOML offset date-time ends: Z for UTC, else its sign,
+   --  hours and minutes (+05:30).
+   function Offset_Text (Offset : Offset_Minutes) return String;
+
 end Tabula.Toml_Text;

@@ -269,6 +269,53 @@ package body Tabula_Config_Values_Tests is
       Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
    end Test_Specials;
 
+   --  A date, a time and a date-time, local or with an offset, are each a
+   --  kind of their own, their text the canonical TOML form: a T between
+   --  date and time, milliseconds when the time has a fraction, Z for
+   --  UTC; in a list as at a key.
+   procedure Test_Calendar (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard : aliased Recorder;
+      Root  : Table;
+   begin
+      Parse_Silently
+        ("day = 2020-01-01"
+         & LF
+         & "open = 09:30:00"
+         & LF
+         & "fine = 09:30:00.25"
+         & LF
+         & "local = 2020-01-01T09:30:00"
+         & LF
+         & "spaced = 2020-01-01 09:30:00.5"
+         & LF
+         & "zulu = 1979-05-27T07:32:00Z"
+         & LF
+         & "east = 1979-05-27T07:32:00+05:30"
+         & LF
+         & "west = 1979-05-27T07:32:00.999-08:00"
+         & LF
+         & "unknown = 1979-05-27T07:32:00-00:00"
+         & LF
+         & "days = [2020-01-01, 2030-12-31]"
+         & LF,
+         Heard,
+         Root);
+      Assert
+        (Walked (Root)
+         = "day:A_DATE:2020-01-01,open:A_TIME:09:30:00,"
+           & "fine:A_TIME:09:30:00.250,"
+           & "local:A_LOCAL_DATETIME:2020-01-01T09:30:00,"
+           & "spaced:A_LOCAL_DATETIME:2020-01-01T09:30:00.500,"
+           & "zulu:AN_OFFSET_DATETIME:1979-05-27T07:32:00Z,"
+           & "east:AN_OFFSET_DATETIME:1979-05-27T07:32:00+05:30,"
+           & "west:AN_OFFSET_DATETIME:1979-05-27T07:32:00.999-08:00,"
+           & "unknown:AN_OFFSET_DATETIME:1979-05-27T07:32:00-00:00,"
+           & "days:AN_ARRAY:[:A_DATE:2020-01-01,:A_DATE:2030-12-31]",
+         "each calendar value: " & Walked (Root));
+      Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
+   end Test_Calendar;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -280,6 +327,7 @@ package body Tabula_Config_Values_Tests is
         (T, Test_Round_Trip'Access, "a decimal's text reads back");
       Register_Routine (T, Test_Loaded'Access, "a loaded file's decimals");
       Register_Routine (T, Test_Specials'Access, "nan and infinities");
+      Register_Routine (T, Test_Calendar'Access, "dates, times, date-times");
    end Register_Tests;
 
    overriding

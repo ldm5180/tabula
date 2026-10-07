@@ -222,6 +222,26 @@ package body Tabula_Toml_Text_Tests is
       Check ("", "");
    end Test_Decimal_Of;
 
+   --  A time with its milliseconds, and an offset from UTC, as TOML
+   --  writes them.
+   procedure Test_Fine_Texts (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+   begin
+      Assert (Time_Text ((9, 30, 0), 0) = "09:30:00", "no fraction");
+      Assert (Time_Text ((9, 30, 0), 250) = "09:30:00.250", "a quarter");
+      Assert (Time_Text ((23, 59, 60), 7) = "23:59:60.007", "padded");
+      Assert (Time_Text ((0, 0, 1), 999) = "00:00:01.999", "the last");
+      Assert (Offset_Text (0) = "Z", "UTC is Z");
+      Assert (Offset_Text (330) = "+05:30", "east: " & Offset_Text (330));
+      Assert (Offset_Text (-480) = "-08:00", "west: " & Offset_Text (-480));
+      Assert
+        (Offset_Text (Max_Offset) = "+23:59",
+         "the furthest east: " & Offset_Text (Max_Offset));
+      Assert
+        (Offset_Text (-Max_Offset) = "-23:59",
+         "the furthest west: " & Offset_Text (-Max_Offset));
+   end Test_Fine_Texts;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -238,6 +258,7 @@ package body Tabula_Toml_Text_Tests is
         (T, Test_Date_Time_Text'Access, "a date's and a time's text");
       Register_Routine
         (T, Test_Decimal_Of'Access, "a float as a plain decimal, exactly");
+      Register_Routine (T, Test_Fine_Texts'Access, "milliseconds and offsets");
    end Register_Tests;
 
    overriding

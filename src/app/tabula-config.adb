@@ -414,6 +414,12 @@ package body Tabula.Config is
       return Fallback;
    end Get_Scaled;
 
+   function To_Date (D : TOML.Any_Local_Date) return Date
+   is ((Positive (D.Year), Positive (D.Month), Positive (D.Day)));
+
+   function To_Time (C : TOML.Any_Local_Time) return Time_Of_Day
+   is ((Natural (C.Hour), Natural (C.Minute), Natural (C.Second)));
+
    --  V as a date: a local date of a real day, or text Toml_Text reads
    --  as one.
    function Date_Of (V : TOML.TOML_Value) return Toml_Text.Date_Read is
@@ -421,9 +427,7 @@ package body Tabula.Config is
       case TOML.Kind (V) is
          when TOML.TOML_Local_Date =>
             declare
-               D   : constant TOML.Any_Local_Date := TOML.As_Local_Date (V);
-               Day : constant Date :=
-                 (Positive (D.Year), Positive (D.Month), Positive (D.Day));
+               Day : constant Date := To_Date (TOML.As_Local_Date (V));
             begin
                return (Toml_Text.Is_Calendar_Date (Day), Day);
             end;
@@ -459,16 +463,9 @@ package body Tabula.Config is
    begin
       case TOML.Kind (V) is
          when TOML.TOML_Local_Time =>
-            declare
-               C : constant TOML.Any_Local_Time := TOML.As_Local_Time (V);
-            begin
-               return
-                 (Ok    => C.Millisecond = 0,
-                  Value =>
-                    (Natural (C.Hour),
-                     Natural (C.Minute),
-                     Natural (C.Second)));
-            end;
+            return
+              (Ok    => TOML.As_Local_Time (V).Millisecond = 0,
+               Value => To_Time (TOML.As_Local_Time (V)));
 
          when TOML.TOML_String     =>
             return Toml_Text.Time_Of (TOML.As_String (V));

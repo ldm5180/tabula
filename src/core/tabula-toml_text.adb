@@ -179,6 +179,27 @@ is
        & Time_Layout.Mark
        & Padded (T.Second, Pair));
 
+   --  The width of a time's milliseconds.
+   Millisecond_Width : constant := 3;
+
+   function Time_Text
+     (T : Time_Of_Day; Millisecond : Millisecond_Number) return String
+   is (Time_Text (T)
+       & (if Millisecond = 0
+          then ""
+          else '.' & Padded (Millisecond, Millisecond_Width)));
+
+   Minutes_Per_Hour : constant := 60;
+
+   function Offset_Text (Offset : Offset_Minutes) return String
+   is (if Offset = 0
+       then "Z"
+       else
+         (if Offset < 0 then '-' else '+')
+         & Padded (abs Offset / Minutes_Per_Hour, Pair)
+         & Time_Layout.Mark
+         & Padded (abs Offset mod Minutes_Per_Hour, Pair));
+
    ---------------------------------------------------------------------
    --  Strings and keys.
    ---------------------------------------------------------------------

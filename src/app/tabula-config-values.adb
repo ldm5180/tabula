@@ -59,10 +59,29 @@ package body Tabula.Config.Values is
        & (if F.Kind = TOML.NaN then "nan" else "inf"))
    with Pre => F.Kind /= TOML.Regular;
 
+   function Date_Text (D : TOML.Any_Local_Date) return String
+   is (Toml_Text.Date_Text (To_Date (D)));
+
+   function Time_Text (C : TOML.Any_Local_Time) return String
+   is (Toml_Text.Time_Text (To_Time (C), Natural (C.Millisecond)));
+
+   function Datetime_Text (D : TOML.Any_Local_Datetime) return String
+   is (Date_Text (D.Date) & "T" & Time_Text (D.Time));
+
+   --  What an offset date-time whose offset is unknown ends with.
+   Unknown_Offset : constant String := "-00:00";
+
+   function Offset_Datetime_Text (D : TOML.Any_Offset_Datetime) return String
+   is (Datetime_Text (D.Datetime)
+       & (if D.Unknown_Offset
+          then Unknown_Offset
+          else Toml_Text.Offset_Text (Integer (D.Offset))));
+
    --  The text of the value V, read from T: a string as it reads, an
    --  integer as its decimal digits, a decimal as the document wrote it
    --  (Toml_Text.Decimal_Of), a special float as its sign and name, a
-   --  flag as true or false.
+   --  flag as true or false, and a date, time or date-time in its TOML
+   --  form.
    function Text_Of (T : Table; V : TOML.TOML_Value) return String
    is (case Kind_Of (V) is
          when A_Text                     => TOML.As_String (V),
@@ -74,7 +93,13 @@ package body Tabula.Config.Values is
          when Not_A_Number | An_Infinity => Special_Text (TOML.As_Float (V)),
          when A_Flag                     =>
            (if TOML.As_Boolean (V) then "true" else "false"),
-         when others                     => "");
+         when A_Date                     => Date_Text (TOML.As_Local_Date (V)),
+         when A_Time                     => Time_Text (TOML.As_Local_Time (V)),
+         when A_Local_Datetime           =>
+           Datetime_Text (TOML.As_Local_Datetime (V)),
+         when An_Offset_Datetime         =>
+           Offset_Datetime_Text (TOML.As_Offset_Datetime (V)),
+         when A_Table | An_Array         => "");
 
    --  Hand V, read from T under Key, to Visitor; a decimal whose literal
    --  was not found in the document's text is complained of and skipped.

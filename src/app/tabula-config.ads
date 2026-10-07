@@ -301,6 +301,12 @@ private
    --  complaints go: how a table is taken from another.
    function Within (From : Table; V : TOML.TOML_Value) return Table;
 
+   --  The parser's date D, as a Date.
+   function To_Date (D : TOML.Any_Local_Date) return Date;
+
+   --  The parser's time C to the second, its milliseconds dropped.
+   function To_Time (C : TOML.Any_Local_Time) return Time_Of_Day;
+
    --  One complaint from T, after its label.
    procedure Complain (T : Table; Suffix : String);
 
