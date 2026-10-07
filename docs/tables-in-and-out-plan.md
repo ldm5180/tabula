@@ -9,7 +9,8 @@ caller's state, was added after B8 on `context-callbacks`.  B10, a
 list of lists, was added after B9 on `nested-lists` and is built.  B11,
 every value with its kind and its text, was added after B10 on
 `values` and is built.  B12, two fixes to loading -- a document that
-ends without a line end, and where a refusal is -- is on `load-fixes`.
+ends without a line end, and where a refusal is -- was added after B11
+on `load-fixes` and is built.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -594,3 +595,40 @@ procedure Each_Row
     `Parse` and `Load` let escape as an exception; statera appends a
     line end before parsing for this reason.  Left for the user: a fix
     in tabula (append a line end) or upstream.
+- **B12 (added after B11, at the user's decision):** two faults in
+  loading that statera found, fixed in tabula rather than upstream.  As
+  built, in four cycles (two fixes, a scenario for each):
+  - The line end.  `Tabula.Toml_Source.Line_Ended` (core, proved) gives
+    the text from one with a line feed after it when it ends with
+    neither a line feed nor a carriage return; `Parsed_Of` hands that
+    to the parser, so `Parse` and every readable `Load` take it, and the
+    table keeps it as its source -- the line feed comes after every
+    place the parser records, so the decimal walk is unchanged.  The
+    shapes that failed: a date, a time without a fraction, a local
+    date-time, and a date-time with a numeric offset; a time with a
+    fraction, a `Z` date-time and a date inside a list never did.
+  - The place.  `Wrap` hands over `TOML.Format_Error`, `LINE:COLUMN:
+    message`.  The text a consumer saw before B11 had no place either:
+    tabula has handed over `Read_Result.Message` since the getters were
+    first written, from `TOML.File_IO.Load_File` until B11 and from
+    `Load_String` since, and both give `invalid syntax` for a broken
+    third line.  `3:1: invalid syntax` is what statera's converter
+    printed through `Format_Error` while it read ada_toml directly; that
+    is the text matched.  A file the parser cannot open keeps its
+    message, which has no place.
+  - The consequence named in the Fix: a broken document that ends
+    without a line end is refused as the same document with one is --
+    `[run` at `2:1`, and an unterminated string at the end as `2:1:
+    invalid string` where the bare text gave `1:7: unterminated string`.
+    Before this item neither carried a place.
+  - Tests: a new `Tabula_Config_Load_Tests` (every load outcome, read
+    four ways -- Parse and Load, warner and listener), to which the
+    two load-outcome tests moved from `Tabula_Config_Tests`; and
+    `Line_Ended` in `Tabula_Toml_Source_Tests`.  `files.feature` gained
+    a file (`configs/dated.toml`, committed without a final line end)
+    and a doc string that end with a date and a time, and a refusal at
+    its line and column, through a new configs-region step.
+  - *Found on the way, not changed:* `Load` of a directory raises
+    `Device_Error` ("Is a directory"): `Stream_IO` opens a directory and
+    fails on the read, and so does the parser's own file read the
+    fallback goes to.  It raised before B11 too.

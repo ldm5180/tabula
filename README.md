@@ -23,7 +23,8 @@ keep the same spirit, and two rules hold for every part of it:
 
 - **`Tabula.Config`** — typed knob getters over
   [ada_toml](https://github.com/pmderodat/ada-toml): `Load` (file, with
-  distinct `Missing` / `Malformed` outcomes) or `Parse` (in-memory),
+  distinct `Missing` / `Malformed` outcomes, a refusal naming its line
+  and column, `3:1: invalid syntax`) or `Parse` (in-memory),
   `Section`, overloaded `Get` for Boolean / Natural (with a `Min` guard) /
   String (with `Require_Non_Empty`) / Long_Float, `Get_Scaled` for a
   number as a whole count of a scale's units (no floating point needed:

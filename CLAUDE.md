@@ -62,7 +62,10 @@ Two rules hold for every addition:
   text): all ada_toml specifics stay behind these two, which share the
   helpers `Tabula.Config`'s private part declares; parser refusals
   become a `Malformed` status at this boundary and never escape as
-  exceptions.  A table carries its document's text, so a float's
+  exceptions.  The parser is handed the text with a line end after it
+  when it has none (`Tabula.Toml_Source.Line_Ended`): ada_toml's lexer
+  fails a precondition on a date or a time that ends the text.  A table
+  carries its document's text, so a float's
   literal is read as written (`Tabula.Toml_Source` finds it by the
   place the parser recorded, `Tabula.Toml_Text.Decimal_Of` reads it).
   The writer (`Tabula.Emit`) builds on the core's text functions and
@@ -175,7 +178,9 @@ Two rules hold for every addition:
   based literals, underscores).
 - `Load` distinguishes `Missing` (no file — callers usually keep defaults
   and log at most an info line) from `Malformed` (parser refusal, with its
-  message); both leave the empty table, whose every getter falls back.
+  message as `TOML.Format_Error` writes it, `3:1: invalid syntax`, the
+  line and column first); both leave the empty table, whose every getter
+  falls back.
 - fructus, arb-ada and firescan-ada read through the getters: never
   change what an existing getter returns or warns.
 - The value walk (`Tabula.Config.Values.Each_Value`) never warns: every
