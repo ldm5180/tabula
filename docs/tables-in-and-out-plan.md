@@ -5,7 +5,8 @@ commit per cycle; every gate passes (suite, features, format,
 validation, proof).  What differs from the plan below is in the
 revision notes.  B8, a list of numbers at a scale, was added after
 B7 at the user's decision and is built.  B9, callbacks that carry the
-caller's state, was added after B8 on `context-callbacks`.
+caller's state, was added after B8 on `context-callbacks`.  B10, a
+list of lists, was added after B9 on `nested-lists`.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -259,6 +260,47 @@ procedure Each_Row
   walker and for CSV rows, visited into the reader's own object --
   has undefined steps.
 
+### B10 -- A list of lists
+
+- **Where:** `src/app/tabula-config.ads`, beside the walkers and their
+  visitors; the body's `Each_Entry`, which every array walk goes
+  through.
+- **What is wrong:** PRO's grid configs hold lists of lists -- the
+  outer list is the grid's options, each inner list one option's value
+  (`entry_targets = [[15, 25, 35]]`, `custom_filters = [['skip EOM',
+  'skip FOMC']]`, `day_of_week = [[2, 3, 4, 5]]`) -- and every walker
+  skips an entry that is an array, with a warning.  statera's PRO
+  converter therefore reads those knobs through ada_toml directly, a
+  second TOML reader beside tabula.
+- **Why:** nothing asked for a nested list until statera's converter
+  had to read PRO's grids.
+- **Fix:** a walk of the inner arrays, in both styles:
+  `type List_Visitor is limited interface; procedure Visit_List (V :
+  in out List_Visitor; Item : Table) is abstract;` and `Each_List (T :
+  Table; Key : String; Visitor : in out List_Visitor'Class)`, with the
+  access-to-procedure form as the usual adapter.  `Item` is a `Table`
+  that *is* the inner array; a keyless `Each_String (List : Table;
+  ...)` and `Each_Scaled (List : Table; Scale : Positive; ...)`, in
+  both styles, walk its entries as the keyed walks walk a knob's, and
+  their warnings name the option (`entry_targets[2]`, counting from
+  one).  A table that is not a list walks nothing, silently, as
+  `Each_Key` walks nothing of a table that is not one.  The policy:
+  an absent key does nothing; a non-array warns and does nothing; an
+  entry of a grid that is not an array warns and is skipped.  A flat
+  list -- an array none of whose entries is an array, the empty one
+  among them -- is one option, the whole list, silently.  PRO reads
+  that shape two ways: its single-run loader takes `entry_targets =
+  [25, 35]` as the value (its own test fixtures write it so), while
+  its grid search takes each entry as an option, which for a
+  list-valued knob is a scalar its model rejects, so no run comes of
+  it.  One option is the reading under which the file means anything.
+  Nothing existing changes.
+- **RED first:** `context.feature`: "A grid of lists reads one list
+  per option" -- `entry_targets = [[15, 25, 35], [20, 30]]` visited as
+  numbers at a scale of 1 gathers `[15,25,35],[20,30]`.  The step is
+  undefined, and `Tabula_Config_Tests` fails to compile on
+  `List_Visitor`.
+
 ## 3. Features
 
 | file | new scenarios |
@@ -267,7 +309,7 @@ procedure Each_Row
 | `knobs.feature` | scaled numbers, bare and quoted; a list of them (B8); dates; times; each out-of-range or wrong-typed value warns and falls back |
 | `emit.feature` | a document reads back the same; a key that needs quoting gets it; text that is not a number is refused as a number |
 | `csv.feature` | fields by header name; quoted fields; a ragged record and an unclosed quote are refused with their line; a file written reads back the same |
-| `context.feature` | a reader's own listener hears its table's complaints, a section's among them; each walker, and a CSV file's rows, visited into the reader's own object (B9) |
+| `context.feature` | a reader's own listener hears its table's complaints, a section's among them; each walker, and a CSV file's rows, visited into the reader's own object (B9); a grid of lists, one list per option, a flat list as one option, and a grid's entry that is not a list (B10) |
 
 ## Revision notes
 
@@ -389,3 +431,15 @@ procedure Each_Row
     per step.  The warner's own recorder, the region states and the
     CSV procedure form's gatherer stay package state in the tests:
     the procedure forms they exercise carry no object.
+- **B10 (added after B9, at the user's decision):** statera's PRO
+  converter reads PRO's grids, lists of lists, through ada_toml
+  directly; the user chose to extend tabula so statera has one TOML
+  reader.  The item was written against tabula at `f8a6432` and PRO's
+  `src/config/grid_search.py` and `iterables.py`, whose
+  `separate_iterable_and_non_iterable_configs` takes a non-empty list
+  at an iterable path as the options and leaves anything else as the
+  one value -- which is where the flat-list reading above comes from.
+  The inner list is handed over as a `Table` rather than as a new
+  type, so the walks a caller already knows read it, and the item's
+  name (its key and place) rides in the table, private, for the
+  warnings.
