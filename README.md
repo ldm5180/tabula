@@ -33,8 +33,9 @@ keep the same spirit, and two rules hold for every part of it:
   a day the calendar lacks is refused), `Each_String` for string
   arrays, `Each_Section` for arrays of tables, and `Each_Key` for the
   keys a table holds, in the file's order.  Every table carries a label
-  and a `Warner` callback, so complaints read like `feed config: retries
-  is not a number in 1 .. Natural'Last; using default`.
+  and a `Warner` callback, or a `Listener` object of the caller's own,
+  so complaints read like `feed config: retries is not a number in 1 ..
+  Natural'Last; using default`.
 - **`Tabula.Decimals`** — the SPARK-proven shape check behind quoted exact
   decimals. ada_toml 0.5.0 reassembles bare floats from an INTEGER
   fraction, dropping leading zeros (`0.02` loads as `0.2`!), so
@@ -93,6 +94,26 @@ Trading : constant Tabula.Config.Table :=
   Tabula.Config.Section (Root, "trading");
 Dry_Run : constant Boolean :=
   Tabula.Config.Get (Trading, "dry_run", Fallback => True);
+```
+
+Or keep what the table complains about in an object of your own, with
+no package variable: a `Listener` the table, and every table taken from
+it, carries (it must outlive them).
+
+```ada
+type Complaints is limited new Tabula.Config.Listener with record
+   Count : Natural := 0;
+end record;
+
+overriding procedure Warn (C : in out Complaints; Message : String) is
+begin
+   C.Count := C.Count + 1;
+   Put_Line (Message);
+end Warn;
+...
+Heard  : aliased Complaints;
+Result : Tabula.Config.Load_Outcome;  --  Status, and Error when Malformed
+Tabula.Config.Load ("app.toml", "app config", Heard'Access, Root, Result);
 ```
 
 Write one:

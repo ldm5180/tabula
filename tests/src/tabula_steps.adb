@@ -6,7 +6,6 @@ with Tabula_Steps.Csv_Files;
 with Tabula_Steps.Emits;
 with Tabula_Steps.Knobs;
 with Tabula_Steps.Walks;
-with Tabula_World;
 
 package body Tabula_Steps is
 
@@ -112,6 +111,7 @@ package body Tabula_Steps is
    is
       pragma Unreferenced (H, Info, R);
    begin
+      Tabula_World.Free (Ctx.Heard);
       Ctx := (others => <>);
       for G of Regions loop
          G.Reset.all;

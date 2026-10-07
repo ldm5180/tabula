@@ -6,6 +6,8 @@ with Tabula.Csv;
 with Tabula.Emit;
 with Tabula.Text_Lists;
 
+with Tabula_World;
+
 with Fabula.Args;
 with Fabula.Check;
 with Fabula.Frames;
@@ -23,6 +25,7 @@ package Tabula_Steps is
    --  event of that region's state machine, in its own child package.
    type Step_Kind is
      (E_Parse_Doc,
+      E_Parse_Heard,
       E_Load_File,
       E_Load_Missing,
       E_Load_Saved,
@@ -32,6 +35,8 @@ package Tabula_Steps is
       E_Take_Section,
       E_Check_Silent,
       E_Check_Warned,
+      E_Check_Heard,
+      E_Check_Heard_Nothing,
       E_Read_Bool,
       E_Read_Count,
       E_Read_Count_Min,
@@ -140,9 +145,12 @@ package Tabula_Steps is
    --  written and whether it saved, and a CSV file's path and what
    --  reading it came to: the header's names, and each row's fields by
    --  position and, in the header's order, by name; and the records a
-   --  scenario wrote to one, header first, and whether it landed.
+   --  scenario wrote to one, header first, and whether it landed.  A
+   --  scenario whose table has its own listener holds it on the heap,
+   --  since the world is copied.
    type World is record
       Root    : Tabula.Config.Table;
+      Heard   : Tabula_World.Recorder_Access;
       Label   : Unbounded_String;
       Status  : Tabula.Config.Load_Status := Tabula.Config.Loaded;
       Error   : Unbounded_String;
@@ -194,7 +202,9 @@ package Tabula_Steps is
 
    --!format off
    Step_Defs : constant Steps.Step_Table :=
-     [Step ("a config labelled {string}:")                      >= E_Parse_Doc,
+     [Step ("a config labelled {string} heard by its own listener:")
+                                                                >= E_Parse_Heard,
+      Step ("a config labelled {string}:")                      >= E_Parse_Doc,
       Step ("a config labelled {string} from the file {word}")  >= E_Load_File,
       Step ("a config labelled {string} from a file that does not exist")
                                                                 >= E_Load_Missing,
@@ -206,6 +216,8 @@ package Tabula_Steps is
       Step ("the section {word}")                               >= E_Take_Section,
       Step ("nothing was warned")                               >= E_Check_Silent,
       Step ("{word} was complained about")                      >= E_Check_Warned,
+      Step ("its listener heard {word} complained about")       >= E_Check_Heard,
+      Step ("its listener heard nothing")                       >= E_Check_Heard_Nothing,
       Step ("the boolean {word} is read with default {word}")   >= E_Read_Bool,
       Step ("the count {word} is read with default {int} and at least {int}")
                                                                 >= E_Read_Count_Min,

@@ -530,6 +530,60 @@ package body Tabula_Config_Tests is
       Assert (Silent, "and none of it says anything");
    end Test_Each_Key;
 
+   --  A sample whose root and section each hold a knob that warns.
+   Listened_Sample : constant String :=
+     "count = ""x""" & ASCII.LF & "[box]" & ASCII.LF & "flag = 1";
+
+   --  A table parsed to a listener the test owns warns to it alone, with
+   --  the label, and a section taken from it warns to it too; the
+   --  recorder the warner feeds hears nothing.
+   procedure Test_Listener (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard  : aliased Recorder;
+      Root   : Table;
+      Result : Load_Outcome;
+   begin
+      Reset;
+      Parse (Listened_Sample, "own config", Heard'Access, Root, Result);
+      Assert (Result.Status = Loaded, "the sample parses");
+      Assert (Silent (Heard), "parsing says nothing");
+      Assert (Get (Root, "count", Fallback => 4) = 4, "a wrong knob");
+      Assert
+        (Warned
+           (Heard, "own config: count is not a number in 0 .. Natural'Last"),
+         "warns to the listener, with the label: " & Warnings_Text (Heard));
+      Assert (Get (Section (Root, "box"), "flag", True), "a section's");
+      Assert
+        (Complained (Heard, "own config", "flag"),
+         "warns to the same listener: " & Warnings_Text (Heard));
+      Assert (Silent, "and the warner's recorder heard none of it");
+   end Test_Listener;
+
+   --  Load and Parse to a listener come to the outcomes Load and Parse
+   --  to a warner do: Missing, Malformed with the parser's message, and
+   --  Loaded with the file's knobs.
+   procedure Test_Listener_Outcomes
+     (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Heard  : aliased Recorder;
+      Root   : Table;
+      Result : Load_Outcome;
+      Path   : constant String := Scratch ("listened.toml");
+   begin
+      Load ("no-such-file.toml", "own config", Heard'Access, Root, Result);
+      Assert (Result.Status = Missing, "a missing file is Missing");
+      Assert (Length (Result.Error) = 0, "with nothing to say");
+      Parse ("not = = toml", "own config", Heard'Access, Root, Result);
+      Assert (Result.Status = Malformed, "a broken document is Malformed");
+      Assert (Length (Result.Error) > 0, "with the parser's message");
+      Write_File (Path, Listened_Sample);
+      Load (Path, "own config", Heard'Access, Root, Result);
+      Assert (Result.Status = Loaded, "a file loads");
+      Assert (Get (Root, "count", Fallback => 4) = 4, "its wrong knob");
+      Assert (Warned (Heard, "count is not a number"), "warns to it");
+   end Test_Listener_Outcomes;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -558,6 +612,10 @@ package body Tabula_Config_Tests is
       Register_Routine (T, Test_Scaled_List'Access, "a list at a scale");
       Register_Routine
         (T, Test_Scaled_List_Skips'Access, "a scaled list's bad entries");
+      Register_Routine
+        (T, Test_Listener'Access, "warnings to the caller's listener");
+      Register_Routine
+        (T, Test_Listener_Outcomes'Access, "load and parse to a listener");
    end Register_Tests;
 
    overriding

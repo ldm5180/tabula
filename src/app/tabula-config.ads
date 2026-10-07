@@ -16,9 +16,9 @@ package Tabula.Config is
    --  means silent fallbacks.  Callers typically pass their logger.
    type Warner is access procedure (Message : String);
 
-   --  One TOML table plus the label and warner its getters report
-   --  through.  Default-initialized: empty, so every getter falls back
-   --  silently.
+   --  One TOML table plus the label and the warner or listener its
+   --  getters report through.  Default-initialized: empty, so every
+   --  getter falls back silently.
    type Table is private;
 
    type Load_Status is (Loaded, Missing, Malformed);
@@ -46,7 +46,39 @@ package Tabula.Config is
       Status  : out Load_Status;
       Error   : out Ada.Strings.Unbounded.Unbounded_String);
 
-   --  The named sub-table, carrying Root's label and warner along.
+   --  What hears a table's complaints and keeps them in the caller's own
+   --  object: a Warner that carries state.  Warn takes one complaint per
+   --  unusable knob, prefixed with the table's label as a Warner's is.
+   type Listener is limited interface;
+
+   procedure Warn (L : in out Listener; Message : String) is abstract;
+
+   --  What came of a Load or Parse: its status, and the parser's message
+   --  when Malformed (else empty).
+   type Load_Outcome is record
+      Status : Load_Status := Loaded;
+      Error  : Ada.Strings.Unbounded.Unbounded_String;
+   end record;
+
+   --  Load, with the table's complaints heard by Heard_By, which Root and
+   --  every table taken from it carry: Heard_By must outlive them all.
+   procedure Load
+     (Path     : String;
+      Label    : String;
+      Heard_By : not null access Listener'Class;
+      Root     : out Table;
+      Result   : out Load_Outcome);
+
+   --  Parse, with the table's complaints heard by Heard_By, as Load's.
+   procedure Parse
+     (Content  : String;
+      Label    : String;
+      Heard_By : not null access Listener'Class;
+      Root     : out Table;
+      Result   : out Load_Outcome);
+
+   --  The named sub-table, carrying Root's label and warner or listener
+   --  along.
    --  Absent or not-a-table yields the empty table: a missing section
    --  keeps every default, silently.
    function Section (Root : Table; Name : String) return Table;
@@ -131,9 +163,9 @@ package Tabula.Config is
       Process : not null access procedure (Item : Long_Long_Integer));
 
    --  Walk the sub-tables of an array-of-tables knob ([[trades]]),
-   --  each carrying the root's label and warner: an absent key does
-   --  nothing, a non-array warns and does nothing, each non-table
-   --  entry warns and is skipped.
+   --  each carrying the root's label and warner or listener: an absent
+   --  key does nothing, a non-array warns and does nothing, each
+   --  non-table entry warns and is skipped.
    procedure Each_Section
      (T       : Table;
       Key     : String;
@@ -148,10 +180,19 @@ package Tabula.Config is
 
 private
 
+   type Listener_Access is access all Listener'Class;
+
+   --  Where a table's complaints go: its listener when it has one, else
+   --  its warner, else nowhere.
+   type Sink is record
+      Warn     : Warner;
+      Heard_By : Listener_Access;
+   end record;
+
    type Table is record
       Value : TOML.TOML_Value := TOML.No_TOML_Value;
       Label : Ada.Strings.Unbounded.Unbounded_String;
-      Warn  : Warner;
+      To    : Sink;
    end record;
 
 end Tabula.Config;
