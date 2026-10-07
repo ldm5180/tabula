@@ -589,12 +589,24 @@ package body Tabula.Config is
       end if;
    end Take;
 
+   --  Whether V is a flat list: an array none of whose entries is an
+   --  array, the empty one among them.
+   function Is_Flat (V : TOML.TOML_Value) return Boolean
+   is (Is_Array (V)
+       and then (for all I in 1 .. TOML.Length (V) =>
+                   not Is_Array (TOML.Item (V, I))));
+
    procedure Each_List
      (T : Table; Key : String; Visitor : in out List_Visitor'Class)
    is
+      V       : constant TOML.TOML_Value := Lookup (T, Key);
       Entries : List_Entries (Visitor'Access);
    begin
-      Each_Entry (T, Key, Entries);
+      if Is_Flat (V) then
+         Visitor.Visit_List (List_Of (T, V, Key));
+      else
+         Each_Entry (T, Key, Entries);
+      end if;
    end Each_List;
 
    procedure Each_String

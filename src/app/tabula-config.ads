@@ -231,23 +231,30 @@ package Tabula.Config is
    --  (entry_targets = [[15, 25, 35], [20, 30]]) -- handing each inner
    --  list to Visitor as a table carrying T's label and warner or
    --  listener, whose entries the keyless Each_String and Each_Scaled
-   --  below walk: an absent key does nothing, a non-array warns and does
-   --  nothing, each entry that is not an array warns and is skipped.
+   --  below walk.  An absent key does nothing, a non-array warns and does
+   --  nothing, and each entry that is not an array warns and is skipped.
+   --
+   --  A flat list (entry_targets = [25, 35]) -- an array none of whose
+   --  entries is an array, the empty one among them -- is one option,
+   --  the whole list, silently: how a single-run config writes the value,
+   --  and the only reading of it where a grid is wanted that means
+   --  anything.
    procedure Each_List
      (T : Table; Key : String; Visitor : in out List_Visitor'Class);
 
-   --  Walk the strings of List, a list a walk of a list of lists handed
-   --  over, as Each_String walks a knob's: each non-string entry warns,
-   --  naming the list by its key and its place counting from one
-   --  (entry_targets[2]), and is skipped.  A table that is not such a
-   --  list walks nothing, silently.
+   --  Walk the strings of List, a list Each_List handed over, as
+   --  Each_String walks a knob's: each non-string entry warns and is
+   --  skipped.  The warning names the list by its key and its place in
+   --  the grid counting from one (entry_targets[2]), or by its key alone
+   --  when it was a flat list.  A table that is not such a list walks
+   --  nothing, silently.
    procedure Each_String (List : Table; Visitor : in out String_Visitor'Class);
 
-   --  Walk the numbers of List, a list a walk of a list of lists handed
-   --  over, at Scale, as Each_Scaled walks a knob's: each entry that is
-   --  not a number, or does not fit, warns, naming the list as the
-   --  keyless Each_String does, and is skipped.  A table that is not
-   --  such a list walks nothing, silently.
+   --  Walk the numbers of List, a list Each_List handed over, at Scale,
+   --  as Each_Scaled walks a knob's: each entry that is not a number, or
+   --  does not fit, warns, naming the list as the keyless Each_String
+   --  does, and is skipped.  A table that is not such a list walks
+   --  nothing, silently.
    procedure Each_Scaled
      (List : Table; Scale : Positive; Visitor : in out Scaled_Visitor'Class);
 

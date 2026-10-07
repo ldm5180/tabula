@@ -692,6 +692,12 @@ package body Tabula_Config_Tests is
      & ASCII.LF
      & "mixed = [[1, 2], 3, [""x""]]"
      & ASCII.LF
+     & "flat = [25, ""x"", 35]"
+     & ASCII.LF
+     & "flat_filters = [""skip EOM"", ""skip FOMC""]"
+     & ASCII.LF
+     & "empty = []"
+     & ASCII.LF
      & "scalar = 1";
 
    --  A visitor that counts the lists a walk handed it.
@@ -808,6 +814,33 @@ package body Tabula_Config_Tests is
          "a list keeps its place: " & Warnings_Text (Heard));
    end Test_List_Skips;
 
+   --  A flat list where a grid is read -- a list none of whose entries is
+   --  a list, the empty one among them -- is one option, the whole list,
+   --  silently; what its walk skips is complained of by its key alone.
+   procedure Test_Flat_List (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard   : aliased Recorder;
+      Root    : Table;
+      Result  : Load_Outcome;
+      Flat    : List_Gatherer (Numbers, Scale => 1);
+      Filters : List_Gatherer;
+      Empty   : List_Gatherer;
+   begin
+      Parse (Grid_Sample, "grid config", Heard'Access, Root, Result);
+      Each_List (Root, "flat_filters", Filters);
+      Assert
+        (Items (Filters) = "[skip EOM,skip FOMC]",
+         "one option of strings: " & Items (Filters));
+      Each_List (Root, "empty", Empty);
+      Assert (Items (Empty) = "[]", "one empty option: " & Items (Empty));
+      Assert (Silent (Heard), "silently: " & Warnings_Text (Heard));
+      Each_List (Root, "flat", Flat);
+      Assert (Items (Flat) = "[25,35]", "one option: " & Items (Flat));
+      Assert
+        (Warned (Heard, "grid config: non-number flat entry skipped"),
+         "its skipped entry, by its key: " & Warnings_Text (Heard));
+   end Test_Flat_List;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -851,6 +884,8 @@ package body Tabula_Config_Tests is
         (T, Test_List_Scaled'Access, "a grid's lists of numbers");
       Register_Routine
         (T, Test_List_Skips'Access, "a grid's entry that is not a list");
+      Register_Routine
+        (T, Test_Flat_List'Access, "a flat list read as a grid");
    end Register_Tests;
 
    overriding
