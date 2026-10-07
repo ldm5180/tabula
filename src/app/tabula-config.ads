@@ -178,6 +178,48 @@ package Tabula.Config is
    procedure Each_Key
      (T : Table; Process : not null access procedure (Key : String));
 
+   --  What a walk hands its items to, in an object of the caller's own:
+   --  one interface per walk, each primitive named for its walk, so one
+   --  caller type may visit several.  Each walk below is the walk of the
+   --  same name above, item for item and warning for warning.
+
+   type String_Visitor is limited interface;
+
+   procedure Visit_String (V : in out String_Visitor; Item : String)
+   is abstract;
+
+   type Scaled_Visitor is limited interface;
+
+   procedure Visit_Scaled (V : in out Scaled_Visitor; Item : Long_Long_Integer)
+   is abstract;
+
+   type Section_Visitor is limited interface;
+
+   procedure Visit_Section (V : in out Section_Visitor; Item : Table)
+   is abstract;
+
+   type Key_Visitor is limited interface;
+
+   procedure Visit_Key (V : in out Key_Visitor; Key : String) is abstract;
+
+   --  Each_String, handing each string to Visitor.
+   procedure Each_String
+     (T : Table; Key : String; Visitor : in out String_Visitor'Class);
+
+   --  Each_Scaled, handing each number to Visitor.
+   procedure Each_Scaled
+     (T       : Table;
+      Key     : String;
+      Scale   : Positive;
+      Visitor : in out Scaled_Visitor'Class);
+
+   --  Each_Section, handing each sub-table to Visitor.
+   procedure Each_Section
+     (T : Table; Key : String; Visitor : in out Section_Visitor'Class);
+
+   --  Each_Key, handing each key to Visitor.
+   procedure Each_Key (T : Table; Visitor : in out Key_Visitor'Class);
+
 private
 
    type Listener_Access is access all Listener'Class;

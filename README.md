@@ -32,7 +32,10 @@ keep the same spirit, and two rules hold for every part of it:
   or a `Tabula.Time_Of_Day` (bare `2020-01-01` / `09:30:00` or quoted;
   a day the calendar lacks is refused), `Each_String` for string
   arrays, `Each_Section` for arrays of tables, and `Each_Key` for the
-  keys a table holds, in the file's order.  Every table carries a label
+  keys a table holds, in the file's order.  Each walker hands its items
+  to a procedure or to a visitor object of the caller's own
+  (`String_Visitor`, `Scaled_Visitor`, `Section_Visitor`,
+  `Key_Visitor`, one primitive name each, so one type can be several).  Every table carries a label
   and a `Warner` callback, or a `Listener` object of the caller's own,
   so complaints read like `feed config: retries is not a number in 1 ..
   Natural'Last; using default`.
@@ -114,6 +117,22 @@ end Warn;
 Heard  : aliased Complaints;
 Result : Tabula.Config.Load_Outcome;  --  Status, and Error when Malformed
 Tabula.Config.Load ("app.toml", "app config", Heard'Access, Root, Result);
+```
+
+Walk into an object of your own the same way:
+
+```ada
+type Names is limited new Tabula.Config.String_Visitor with record
+   List : Name_Vectors.Vector;
+end record;
+
+overriding procedure Visit_String (N : in out Names; Item : String) is
+begin
+   N.List.Append (Item);
+end Visit_String;
+...
+Servers : Names;
+Tabula.Config.Each_String (Root, "servers", Servers);
 ```
 
 Write one:

@@ -123,6 +123,48 @@ package body Tabula_World is
    function Warnings_Text return String
    is (Warnings_Text (Shared));
 
+   --  Item after G's items so far, comma-separated.
+   procedure Add (G : in out Gatherer; Item : String) is
+      use Ada.Strings.Unbounded;
+   begin
+      if Length (G.Items) > 0 then
+         Append (G.Items, ",");
+      end if;
+      Append (G.Items, Item);
+   end Add;
+
+   overriding
+   procedure Visit_String (G : in out Gatherer; Item : String) is
+   begin
+      Add (G, Item);
+   end Visit_String;
+
+   overriding
+   procedure Visit_Scaled (G : in out Gatherer; Item : Long_Long_Integer) is
+   begin
+      Add (G, Ada.Strings.Fixed.Trim (Item'Image, Ada.Strings.Left));
+   end Visit_Scaled;
+
+   --  The knob each gathered table is known by, and what one without it
+   --  is gathered as.
+   Name_Key : constant String := "name";
+   Nameless : constant String := "?";
+
+   overriding
+   procedure Visit_Section (G : in out Gatherer; Item : Tabula.Config.Table) is
+   begin
+      Add (G, Tabula.Config.Get (Item, Name_Key, Nameless));
+   end Visit_Section;
+
+   overriding
+   procedure Visit_Key (G : in out Gatherer; Key : String) is
+   begin
+      Add (G, Key);
+   end Visit_Key;
+
+   function Items (G : Gatherer) return String
+   is (Ada.Strings.Unbounded.To_String (G.Items));
+
    procedure Free_Recorder is new
      Ada.Unchecked_Deallocation (Recorder, Recorder_Access);
 
