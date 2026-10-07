@@ -690,6 +690,8 @@ package body Tabula_Config_Tests is
      & ASCII.LF
      & "levels = [[1, ""x""], [9223372036854775807]]"
      & ASCII.LF
+     & "mixed = [[1, 2], 3, [""x""]]"
+     & ASCII.LF
      & "scalar = 1";
 
    --  A visitor that counts the lists a walk handed it.
@@ -786,6 +788,26 @@ package body Tabula_Config_Tests is
          "the one too large warns: " & Warnings_Text (Heard));
    end Test_List_Scaled;
 
+   --  An entry of a grid that is not a list is complained of and skipped,
+   --  and the walk goes on; each list is named by its place in the grid.
+   procedure Test_List_Skips (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard  : aliased Recorder;
+      Root   : Table;
+      Result : Load_Outcome;
+      Mixed  : List_Gatherer (Numbers, Scale => 1);
+   begin
+      Parse (Grid_Sample, "grid config", Heard'Access, Root, Result);
+      Each_List (Root, "mixed", Mixed);
+      Assert (Items (Mixed) = "[1,2],[]", "the lists: " & Items (Mixed));
+      Assert
+        (Warned (Heard, "grid config: non-array mixed entry skipped"),
+         "the entry that is not a list warns: " & Warnings_Text (Heard));
+      Assert
+        (Warned (Heard, "grid config: non-number mixed[3] entry skipped"),
+         "a list keeps its place: " & Warnings_Text (Heard));
+   end Test_List_Skips;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -827,6 +849,8 @@ package body Tabula_Config_Tests is
         (T, Test_List_Strings'Access, "a grid's lists of strings");
       Register_Routine
         (T, Test_List_Scaled'Access, "a grid's lists of numbers");
+      Register_Routine
+        (T, Test_List_Skips'Access, "a grid's entry that is not a list");
    end Register_Tests;
 
    overriding

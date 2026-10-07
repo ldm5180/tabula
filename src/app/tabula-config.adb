@@ -570,15 +570,23 @@ package body Tabula.Config is
        & Ada.Strings.Fixed.Trim (Place'Image, Ada.Strings.Left)
        & "]");
 
+   --  The list V, called Name, carrying From's label and where From's
+   --  complaints go.
+   function List_Of
+     (From : Table; V : TOML.TOML_Value; Name : String) return Table
+   is ((Within (From, V) with delta Name => To_Unbounded_String (Name)));
+
    overriding
    procedure Take
      (V : in out List_Entries; T : Table; Key : String; Item : TOML.TOML_Value)
    is
    begin
       V.Taken := V.Taken + 1;
-      V.To.Visit_List
-        ((Within (T, Item)
-          with delta Name => To_Unbounded_String (Place_Name (Key, V.Taken))));
+      if Is_Array (Item) then
+         V.To.Visit_List (List_Of (T, Item, Place_Name (Key, V.Taken)));
+      else
+         Complain (T, "non-array " & Key & " entry skipped");
+      end if;
    end Take;
 
    procedure Each_List

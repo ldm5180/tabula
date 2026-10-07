@@ -232,7 +232,7 @@ package Tabula.Config is
    --  list to Visitor as a table carrying T's label and warner or
    --  listener, whose entries the keyless Each_String and Each_Scaled
    --  below walk: an absent key does nothing, a non-array warns and does
-   --  nothing.
+   --  nothing, each entry that is not an array warns and is skipped.
    procedure Each_List
      (T : Table; Key : String; Visitor : in out List_Visitor'Class);
 
