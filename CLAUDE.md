@@ -119,6 +119,21 @@ Two rules hold for every addition:
 - Push exceptions and defensive programming into contracts and let the proof
   system do the heavy lifting; `SPARK_Mode => On` as much as possible.
 
+## Dependency injection
+
+- No package-level variable, set-once cell or singleton, in the crate or
+  forced on its callers.  What a subprogram needs arrives as a
+  parameter, a generic formal, or a field of an object it was handed.
+  Constants are fine.
+- Every callback API has a form that carries the caller's state as an
+  object: the table's warnings go to a `Tabula.Config.Listener`, and
+  each walker hands its items to a visitor interface
+  (`String_Visitor`, `Scaled_Visitor`, `Section_Visitor`,
+  `Key_Visitor`, `Tabula.Csv.Row_Visitor`), each with its own
+  primitive's name so one caller type can be several.  The older
+  access-to-procedure forms stay, as thin adapters over these: a new
+  callback API gets the object form first.
+
 ## Style
 
 - Formatting is `gnatformat`-enforced; wrap hand-aligned tables in
