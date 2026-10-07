@@ -123,14 +123,22 @@ package body Tabula_World is
    function Warnings_Text return String
    is (Warnings_Text (Shared));
 
-   --  Item after G's items so far, comma-separated.
-   procedure Add (G : in out Gatherer; Item : String) is
+   --  Item after the Items so far, comma-separated.
+   procedure Add
+     (Items : in out Ada.Strings.Unbounded.Unbounded_String; Item : String)
+   is
       use Ada.Strings.Unbounded;
    begin
-      if Length (G.Items) > 0 then
-         Append (G.Items, ",");
+      if Length (Items) > 0 then
+         Append (Items, ",");
       end if;
-      Append (G.Items, Item);
+      Append (Items, Item);
+   end Add;
+
+   --  Item after G's items so far, comma-separated.
+   procedure Add (G : in out Gatherer; Item : String) is
+   begin
+      Add (G.Items, Item);
    end Add;
 
    overriding
@@ -182,6 +190,33 @@ package body Tabula_World is
 
    function Items (G : List_Gatherer) return String
    is (Items (G.Lists));
+
+   overriding
+   procedure Visit_Value
+     (G    : in out Value_Gatherer;
+      Key  : String;
+      Kind : Tabula.Config.Values.Value_Kind;
+      Text : String;
+      Item : Tabula.Config.Table)
+   is
+      use all type Tabula.Config.Values.Value_Kind;
+      Inner : Value_Gatherer;
+   begin
+      Tabula.Config.Values.Each_Value (Item, Inner);
+      Add
+        (G.Items,
+         Key
+         & ":"
+         & Kind'Image
+         & ":"
+         & (case Kind is
+              when A_Table  => "{" & Items (Inner) & "}",
+              when An_Array => "[" & Items (Inner) & "]",
+              when others   => Text));
+   end Visit_Value;
+
+   function Items (G : Value_Gatherer) return String
+   is (Ada.Strings.Unbounded.To_String (G.Items));
 
    procedure Free_Recorder is new
      Ada.Unchecked_Deallocation (Recorder, Recorder_Access);

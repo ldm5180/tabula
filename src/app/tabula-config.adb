@@ -56,7 +56,6 @@ package body Tabula.Config is
         To    => To,
         Name  => Null_Unbounded_String));
 
-   --  V, carrying From's label and where From's complaints go.
    function Within (From : Table; V : TOML.TOML_Value) return Table
    is ((Value => V,
         Label => From.Label,
@@ -673,7 +672,6 @@ package body Tabula.Config is
         Array_Type   => TOML.Table_Entry_Array,
         "<"          => Written_Before);
 
-   --  The entries of the table V, in the order the file wrote them.
    function Written_Entries (V : TOML.TOML_Value) return TOML.Table_Entry_Array
    is
       Entries : TOML.Table_Entry_Array := TOML.Iterate_On_Table (V);

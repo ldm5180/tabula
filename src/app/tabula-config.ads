@@ -294,4 +294,12 @@ private
       Name  : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
+   --  The value V as a table carrying From's label and where From's
+   --  complaints go: how a table is taken from another.
+   function Within (From : Table; V : TOML.TOML_Value) return Table;
+
+   --  The entries of the table V, in the order the file wrote them.
+   function Written_Entries
+     (V : TOML.TOML_Value) return TOML.Table_Entry_Array;
+
 end Tabula.Config;

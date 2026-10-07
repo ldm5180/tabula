@@ -1,6 +1,7 @@
 with AUnit.Test_Cases;
 
 with Tabula_Config_Tests;
+with Tabula_Config_Values_Tests;
 with Tabula_Csv_Scan_Tests;
 with Tabula_Csv_Tests;
 with Tabula_Decimals_Tests;
@@ -23,6 +24,7 @@ package body Tabula_Suite is
    begin
       Add (new Tabula_Decimals_Tests.Test);
       Add (new Tabula_Config_Tests.Test);
+      Add (new Tabula_Config_Values_Tests.Test);
       Add (new Tabula_Toml_Text_Tests.Test);
       Add (new Tabula_Toml_Source_Tests.Test);
       Add (new Tabula_Text_Lists_Tests.Test);

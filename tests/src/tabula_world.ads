@@ -1,6 +1,7 @@
 with Ada.Strings.Unbounded;
 
 with Tabula.Config;
+with Tabula.Config.Values;
 
 with Fabula.Frames;
 
@@ -117,6 +118,22 @@ package Tabula_World is
 
    function Items (G : List_Gatherer) return String;
 
+   --  A value visitor a reader owns: each value it was handed as
+   --  key:KIND:text, comma-separated, a table's values walked in turn
+   --  in braces and a list's in brackets.
+   type Value_Gatherer is limited
+     new Tabula.Config.Values.Value_Visitor with private;
+
+   overriding
+   procedure Visit_Value
+     (G    : in out Value_Gatherer;
+      Key  : String;
+      Kind : Tabula.Config.Values.Value_Kind;
+      Text : String;
+      Item : Tabula.Config.Table);
+
+   function Items (G : Value_Gatherer) return String;
+
    --  A recorder a scenario holds across its steps, which copy the world.
    type Recorder_Access is access Recorder;
 
@@ -172,6 +189,11 @@ private
       Scale : Positive := 1)
    is limited new Tabula.Config.List_Visitor with record
       Lists : Gatherer;
+   end record;
+
+   type Value_Gatherer is limited new Tabula.Config.Values.Value_Visitor
+   with record
+      Items : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
 end Tabula_World;
