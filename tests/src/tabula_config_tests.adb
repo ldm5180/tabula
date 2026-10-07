@@ -584,6 +584,103 @@ package body Tabula_Config_Tests is
       Assert (Warned (Heard, "count is not a number"), "warns to it");
    end Test_Listener_Outcomes;
 
+   --  A sample with something for every walker, and entries each walker
+   --  skips.
+   Walked_Sample : constant String :=
+     "names = [""a"", 3, ""b""]"
+     & ASCII.LF
+     & "levels = [15, ""0.0210"", ""x""]"
+     & ASCII.LF
+     & "scalar = 1"
+     & ASCII.LF
+     & "[box]"
+     & ASCII.LF
+     & "inner = true"
+     & ASCII.LF
+     & "first = 0"
+     & ASCII.LF
+     & "[[runs]]"
+     & ASCII.LF
+     & "name = ""alpha"""
+     & ASCII.LF
+     & "[[runs]]"
+     & ASCII.LF
+     & "name = ""beta"""
+     & ASCII.LF
+     & "flag = ""no""";
+
+   --  The array walks hand their items to a visitor the test owns, in
+   --  order, and complain of what they skip to the table's listener.
+   procedure Test_Array_Visitors (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Heard            : aliased Recorder;
+      Root             : Table;
+      Result           : Load_Outcome;
+      Strings, Numbers : Gatherer;
+      Tables, Nothing  : Gatherer;
+   begin
+      Parse (Walked_Sample, "own config", Heard'Access, Root, Result);
+      Each_String (Root, "names", Strings);
+      Assert (Items (Strings) = "a,b", "strings: " & Items (Strings));
+      Assert
+        (Warned (Heard, "own config: non-string names entry skipped"),
+         "the non-string warns to the listener");
+      Each_Scaled (Root, "levels", 1_000_000, Numbers);
+      Assert
+        (Items (Numbers) = "15000000,21000", "numbers: " & Items (Numbers));
+      Assert
+        (Warned (Heard, "own config: non-number levels entry skipped"),
+         "the non-number warns to the listener");
+      Each_Section (Root, "runs", Tables);
+      Assert (Items (Tables) = "alpha,beta", "tables: " & Items (Tables));
+      Each_String (Root, "absent", Nothing);
+      Each_Section (Root, "scalar", Nothing);
+      Assert (Items (Nothing) = "", "absent and non-array walk nothing");
+      Assert
+        (Warned (Heard, "own config: scalar is not an array"),
+         "the non-array warns: " & Warnings_Text (Heard));
+   end Test_Array_Visitors;
+
+   --  A visitor that keeps the last table a walk handed it.
+   type Last_Section is limited new Section_Visitor with record
+      Last : Table;
+   end record;
+
+   overriding
+   procedure Visit_Section (V : in out Last_Section; Item : Table);
+
+   overriding
+   procedure Visit_Section (V : in out Last_Section; Item : Table) is
+   begin
+      V.Last := Item;
+   end Visit_Section;
+
+   --  A table a walk hands over warns to the listener of the table it
+   --  came from; the keys of a table, a section's too, come in the
+   --  file's order.
+   procedure Test_Key_Visitor (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard       : aliased Recorder;
+      Root        : Table;
+      Result      : Load_Outcome;
+      Kept        : Last_Section;
+      Keys, Inner : Gatherer;
+   begin
+      Parse (Walked_Sample, "own config", Heard'Access, Root, Result);
+      Each_Section (Root, "runs", Kept);
+      Assert (Get (Kept.Last, "flag", True), "a wrong knob in a walked table");
+      Assert
+        (Complained (Heard, "own config", "flag"),
+         "warns to the root's listener: " & Warnings_Text (Heard));
+      Each_Key (Root, Keys);
+      Assert
+        (Items (Keys) = "names,levels,scalar,box,runs",
+         "the root's keys in file order: " & Items (Keys));
+      Each_Key (Section (Root, "box"), Inner);
+      Assert (Items (Inner) = "inner,first", "a section's: " & Items (Inner));
+   end Test_Key_Visitor;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -616,6 +713,10 @@ package body Tabula_Config_Tests is
         (T, Test_Listener'Access, "warnings to the caller's listener");
       Register_Routine
         (T, Test_Listener_Outcomes'Access, "load and parse to a listener");
+      Register_Routine
+        (T, Test_Array_Visitors'Access, "array walks to a visitor");
+      Register_Routine
+        (T, Test_Key_Visitor'Access, "keys and walked tables, visited");
    end Register_Tests;
 
    overriding

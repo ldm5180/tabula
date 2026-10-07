@@ -415,13 +415,35 @@ package body Tabula.Config is
       return Fallback;
    end Get;
 
-   --  Hand each entry of the array knob Key to Visit, in order: an
+   ---------------------------------------------------------------------
+   --  The walks.  Each array walk is the one Each_Entry, handing every
+   --  entry to the private entry visitor of its kind, which hands what it
+   --  takes to the caller's visitor and complains of the rest.
+   ---------------------------------------------------------------------
+
+   --  What Each_Entry hands each entry of an array knob to: a package
+   --  of its own, since an interface's primitives are declared in a
+   --  package's spec.
+   package Walking is
+
+      type Entry_Visitor is limited interface;
+
+      procedure Take
+        (V    : in out Entry_Visitor;
+         T    : Table;
+         Key  : String;
+         Item : TOML.TOML_Value)
+      is abstract;
+
+   end Walking;
+
+   use Walking;
+
+   --  Hand each entry of the array knob Key to Entries, in order: an
    --  absent key does nothing, silently; a non-array warns and does
-   --  nothing.  The walk every Each_ walker shares.
+   --  nothing.
    procedure Each_Entry
-     (T     : Table;
-      Key   : String;
-      Visit : not null access procedure (Item : TOML.TOML_Value))
+     (T : Table; Key : String; Entries : in out Entry_Visitor'Class)
    is
       V : constant TOML.TOML_Value := Lookup (T, Key);
    begin
@@ -432,69 +454,97 @@ package body Tabula.Config is
          return;
       end if;
       for I in 1 .. TOML.Length (V) loop
-         Visit (TOML.Item (V, I));
+         Entries.Take (T, Key, TOML.Item (V, I));
       end loop;
    end Each_Entry;
 
-   procedure Each_String
-     (T       : Table;
-      Key     : String;
-      Process : not null access procedure (Item : String))
-   is
-      procedure Visit (Item : TOML.TOML_Value);
+   --  The strings of an array, to To.
+   type String_Entries (To : not null access String_Visitor'Class) is limited
+     new Entry_Visitor
+   with null record;
 
-      procedure Visit (Item : TOML.TOML_Value) is
-      begin
-         if TOML.Kind (Item) = TOML.TOML_String then
-            Process (TOML.As_String (Item));
-         else
-            Complain (T, "non-string " & Key & " entry skipped");
-         end if;
-      end Visit;
+   overriding
+   procedure Take
+     (V    : in out String_Entries;
+      T    : Table;
+      Key  : String;
+      Item : TOML.TOML_Value) is
    begin
-      Each_Entry (T, Key, Visit'Access);
+      if TOML.Kind (Item) = TOML.TOML_String then
+         V.To.Visit_String (TOML.As_String (Item));
+      else
+         Complain (T, "non-string " & Key & " entry skipped");
+      end if;
+   end Take;
+
+   --  The numbers of an array at Scale, to To.
+   type Scaled_Entries
+     (Scale : Positive;
+      To    : not null access Scaled_Visitor'Class)
+   is limited new Entry_Visitor with null record;
+
+   overriding
+   procedure Take
+     (V    : in out Scaled_Entries;
+      T    : Table;
+      Key  : String;
+      Item : TOML.TOML_Value)
+   is
+      K : constant Scaled_Knob := Scaled_Knob_Of (Item, V.Scale);
+   begin
+      if not K.Is_Number then
+         Complain (T, "non-number " & Key & " entry skipped");
+      elsif not K.Read.Fits then
+         Complain (T, Key & " entry " & Out_Of_Range (V.Scale) & "; skipped");
+      else
+         V.To.Visit_Scaled (K.Read.Value);
+      end if;
+   end Take;
+
+   --  The tables of an array, each carrying T's label and sink, to To.
+   type Section_Entries (To : not null access Section_Visitor'Class) is limited
+     new Entry_Visitor
+   with null record;
+
+   overriding
+   procedure Take
+     (V    : in out Section_Entries;
+      T    : Table;
+      Key  : String;
+      Item : TOML.TOML_Value) is
+   begin
+      if TOML.Kind (Item) = TOML.TOML_Table then
+         V.To.Visit_Section ((Value => Item, Label => T.Label, To => T.To));
+      else
+         Complain (T, "non-table " & Key & " entry skipped");
+      end if;
+   end Take;
+
+   procedure Each_String
+     (T : Table; Key : String; Visitor : in out String_Visitor'Class)
+   is
+      Entries : String_Entries (Visitor'Access);
+   begin
+      Each_Entry (T, Key, Entries);
    end Each_String;
 
    procedure Each_Scaled
      (T       : Table;
       Key     : String;
       Scale   : Positive;
-      Process : not null access procedure (Item : Long_Long_Integer))
+      Visitor : in out Scaled_Visitor'Class)
    is
-      procedure Visit (Item : TOML.TOML_Value);
-
-      procedure Visit (Item : TOML.TOML_Value) is
-         K : constant Scaled_Knob := Scaled_Knob_Of (Item, Scale);
-      begin
-         if not K.Is_Number then
-            Complain (T, "non-number " & Key & " entry skipped");
-         elsif not K.Read.Fits then
-            Complain (T, Key & " entry " & Out_Of_Range (Scale) & "; skipped");
-         else
-            Process (K.Read.Value);
-         end if;
-      end Visit;
+      Entries : Scaled_Entries (Scale, Visitor'Access);
    begin
-      Each_Entry (T, Key, Visit'Access);
+      Each_Entry (T, Key, Entries);
    end Each_Scaled;
 
    procedure Each_Section
-     (T       : Table;
-      Key     : String;
-      Process : not null access procedure (Item : Table))
+     (T : Table; Key : String; Visitor : in out Section_Visitor'Class)
    is
-      procedure Visit (Item : TOML.TOML_Value);
-
-      procedure Visit (Item : TOML.TOML_Value) is
-      begin
-         if TOML.Kind (Item) = TOML.TOML_Table then
-            Process ((Value => Item, Label => T.Label, To => T.To));
-         else
-            Complain (T, "non-table " & Key & " entry skipped");
-         end if;
-      end Visit;
+      Entries : Section_Entries (Visitor'Access);
    begin
-      Each_Entry (T, Key, Visit'Access);
+      Each_Entry (T, Key, Entries);
    end Each_Section;
 
    --  Whether the file wrote L before R: where the parser first made
@@ -519,20 +569,107 @@ package body Tabula.Config is
         Array_Type   => TOML.Table_Entry_Array,
         "<"          => Written_Before);
 
-   procedure Each_Key
-     (T : Table; Process : not null access procedure (Key : String)) is
+   --  The entries of the table V, in the order the file wrote them.
+   function Written_Entries (V : TOML.TOML_Value) return TOML.Table_Entry_Array
+   is
+      Entries : TOML.Table_Entry_Array := TOML.Iterate_On_Table (V);
    begin
-      if not Is_Table (T.Value) then
-         return;
-      end if;
-      declare
-         Entries : TOML.Table_Entry_Array := TOML.Iterate_On_Table (T.Value);
-      begin
-         Sort_Entries (Entries);
-         for E of Entries loop
-            Process (To_String (E.Key));
+      Sort_Entries (Entries);
+      return Entries;
+   end Written_Entries;
+
+   procedure Each_Key (T : Table; Visitor : in out Key_Visitor'Class) is
+   begin
+      if Is_Table (T.Value) then
+         for E of Written_Entries (T.Value) loop
+            Visitor.Visit_Key (To_String (E.Key));
          end loop;
-      end;
+      end if;
+   end Each_Key;
+
+   ---------------------------------------------------------------------
+   --  The walks to a procedure: a visitor whose discriminant is the
+   --  procedure, over the walks to a visitor.
+   ---------------------------------------------------------------------
+
+   type String_Process (Process : not null access procedure (Item : String)) is
+      limited new String_Visitor
+   with null record;
+
+   overriding
+   procedure Visit_String (V : in out String_Process; Item : String) is
+   begin
+      V.Process (Item);
+   end Visit_String;
+
+   type Scaled_Process
+     (Process : not null access procedure (Item : Long_Long_Integer))
+   is limited new Scaled_Visitor with null record;
+
+   overriding
+   procedure Visit_Scaled (V : in out Scaled_Process; Item : Long_Long_Integer)
+   is
+   begin
+      V.Process (Item);
+   end Visit_Scaled;
+
+   type Section_Process (Process : not null access procedure (Item : Table)) is
+      limited new Section_Visitor
+   with null record;
+
+   overriding
+   procedure Visit_Section (V : in out Section_Process; Item : Table) is
+   begin
+      V.Process (Item);
+   end Visit_Section;
+
+   type Key_Process (Process : not null access procedure (Key : String)) is
+      limited new Key_Visitor
+   with null record;
+
+   overriding
+   procedure Visit_Key (V : in out Key_Process; Key : String) is
+   begin
+      V.Process (Key);
+   end Visit_Key;
+
+   procedure Each_String
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : String))
+   is
+      Visitor : String_Process (Process);
+   begin
+      Each_String (T, Key, Visitor);
+   end Each_String;
+
+   procedure Each_Scaled
+     (T       : Table;
+      Key     : String;
+      Scale   : Positive;
+      Process : not null access procedure (Item : Long_Long_Integer))
+   is
+      Visitor : Scaled_Process (Process);
+   begin
+      Each_Scaled (T, Key, Scale, Visitor);
+   end Each_Scaled;
+
+   procedure Each_Section
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : Table))
+   is
+      Visitor : Section_Process (Process);
+   begin
+      Each_Section (T, Key, Visitor);
+   end Each_Section;
+
+   procedure Each_Key
+     (T : Table; Process : not null access procedure (Key : String))
+   is
+      Visitor : Key_Process (Process);
+   begin
+      Each_Key (T, Visitor);
    end Each_Key;
 
 end Tabula.Config;

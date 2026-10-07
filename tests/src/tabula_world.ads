@@ -77,6 +77,29 @@ package Tabula_World is
    --  Every warning R heard, for a failure to show.
    function Warnings_Text (R : Recorder) return String;
 
+   --  A visitor a reader owns, of every walk a table offers: what each
+   --  walk handed it, comma-separated -- a string or a key as it is, a
+   --  number as its digits, a table as its name knob ("?" with none).
+   type Gatherer is limited
+     new Tabula.Config.String_Visitor
+     and Tabula.Config.Scaled_Visitor
+     and Tabula.Config.Section_Visitor
+     and Tabula.Config.Key_Visitor with private;
+
+   overriding
+   procedure Visit_String (G : in out Gatherer; Item : String);
+
+   overriding
+   procedure Visit_Scaled (G : in out Gatherer; Item : Long_Long_Integer);
+
+   overriding
+   procedure Visit_Section (G : in out Gatherer; Item : Tabula.Config.Table);
+
+   overriding
+   procedure Visit_Key (G : in out Gatherer; Key : String);
+
+   function Items (G : Gatherer) return String;
+
    --  A recorder a scenario holds across its steps, which copy the world.
    type Recorder_Access is access Recorder;
 
@@ -116,6 +139,15 @@ private
 
    type Recorder is limited new Tabula.Config.Listener with record
       Heard : Messages.Vector;
+   end record;
+
+   type Gatherer is limited
+     new Tabula.Config.String_Visitor
+     and Tabula.Config.Scaled_Visitor
+     and Tabula.Config.Section_Visitor
+     and Tabula.Config.Key_Visitor
+   with record
+      Items : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
 end Tabula_World;

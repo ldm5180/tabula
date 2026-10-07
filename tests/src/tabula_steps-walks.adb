@@ -1,5 +1,6 @@
 with Tabula_Steps.Configs;
 with Tabula_Steps.Flows;
+with Tabula_World;
 
 package body Tabula_Steps.Walks is
 
@@ -15,20 +16,21 @@ package body Tabula_Steps.Walks is
       A_Walk_Scaled,
       A_Walk_Sections,
       A_Walk_Keys,
+      A_Visit_Strings,
+      A_Visit_Scaled,
+      A_Visit_Sections,
+      A_Visit_Keys,
       A_Again,
       A_Refuse_No_Table,
       A_Refuse_Scale,
       A_Check_Items);
 
+   subtype Walk_Action is Action_Kind range A_Walk_Strings .. A_Walk_Keys;
+   subtype Visit_Action is Action_Kind range A_Visit_Strings .. A_Visit_Keys;
+
    Key_Capture   : constant := 1;
    Scale_Capture : constant := 2;
    Want_Capture  : constant := 1;
-
-   --  The knob each walked table is known by.
-   Name_Key : constant String := "name";
-
-   --  What a walked table says when it has no name.
-   Nameless : constant String := "?";
 
    function Key (Ctx : Step_Context) return String
    is (Fabula.Args.Word (Ctx.A, Key_Capture));
@@ -47,61 +49,94 @@ package body Tabula_Steps.Walks is
              and then Count (Ctx, Scale_Capture) > 0);
    end Evaluate;
 
-   --  Item after the items so far, comma-separated.
-   procedure Add (Items : in out Unbounded_String; Item : String) is
-   begin
-      if Length (Items) > 0 then
-         Append (Items, ",");
-      end if;
-      Append (Items, Item);
-   end Add;
+   --  The walks to a procedure, each into a Gatherer as the walks to a
+   --  visitor gather, so a scenario's items read the same either way.
 
-   procedure Visit_Strings (Ctx : in out Step_Context) is
+   procedure Collect_Strings (Ctx : in out Step_Context) is
+      G : Tabula_World.Gatherer;
       procedure Visit (Item : String) is
       begin
-         Add (Ctx.W.Items, Item);
+         G.Visit_String (Item);
       end Visit;
    begin
-      Ctx.W.Items := Null_Unbounded_String;
       Tabula.Config.Each_String (Ctx.W.Root, Key (Ctx), Visit'Access);
-   end Visit_Strings;
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Collect_Strings;
 
-   --  A number as a feature writes it: no leading blank.
-   function Image (Value : Long_Long_Integer) return String
-   is (Fabula.Check.Long_Image (Value));
-
-   procedure Visit_Scaled (Ctx : in out Step_Context)
+   procedure Collect_Scaled (Ctx : in out Step_Context)
    with Pre => Count_Read (Ctx, Scale_Capture)
    is
+      G : Tabula_World.Gatherer;
       procedure Visit (Item : Long_Long_Integer) is
       begin
-         Add (Ctx.W.Items, Image (Item));
+         G.Visit_Scaled (Item);
       end Visit;
    begin
-      Ctx.W.Items := Null_Unbounded_String;
       Tabula.Config.Each_Scaled
         (Ctx.W.Root, Key (Ctx), Count (Ctx, Scale_Capture), Visit'Access);
-   end Visit_Scaled;
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Collect_Scaled;
 
-   procedure Visit_Sections (Ctx : in out Step_Context) is
+   procedure Collect_Sections (Ctx : in out Step_Context) is
+      G : Tabula_World.Gatherer;
       procedure Visit (Item : Tabula.Config.Table) is
       begin
-         Add (Ctx.W.Items, Tabula.Config.Get (Item, Name_Key, Nameless));
+         G.Visit_Section (Item);
       end Visit;
    begin
-      Ctx.W.Items := Null_Unbounded_String;
       Tabula.Config.Each_Section (Ctx.W.Root, Key (Ctx), Visit'Access);
-   end Visit_Sections;
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Collect_Sections;
 
-   procedure Visit_Keys (Ctx : in out Step_Context) is
+   procedure Collect_Keys (Ctx : in out Step_Context) is
+      G : Tabula_World.Gatherer;
       procedure Visit (Key : String) is
       begin
-         Add (Ctx.W.Items, Key);
+         G.Visit_Key (Key);
       end Visit;
    begin
-      Ctx.W.Items := Null_Unbounded_String;
       Tabula.Config.Each_Key (Ctx.W.Root, Visit'Access);
-   end Visit_Keys;
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Collect_Keys;
+
+   procedure Execute_Walk (A : Walk_Action; Ctx : in out Step_Context) is
+   begin
+      case A is
+         when A_Walk_Strings  =>
+            Collect_Strings (Ctx);
+
+         when A_Walk_Scaled   =>
+            Collect_Scaled (Ctx);
+
+         when A_Walk_Sections =>
+            Collect_Sections (Ctx);
+
+         when A_Walk_Keys     =>
+            Collect_Keys (Ctx);
+      end case;
+   end Execute_Walk;
+
+   --  The walk the action names, handing its items to a visitor of the
+   --  scenario's own, whose items are then the world's.
+   procedure Gather (A : Visit_Action; Ctx : in out Step_Context) is
+      G : Tabula_World.Gatherer;
+   begin
+      case A is
+         when A_Visit_Strings  =>
+            Tabula.Config.Each_String (Ctx.W.Root, Key (Ctx), G);
+
+         when A_Visit_Scaled   =>
+            Tabula.Config.Each_Scaled
+              (Ctx.W.Root, Key (Ctx), Count (Ctx, Scale_Capture), G);
+
+         when A_Visit_Sections =>
+            Tabula.Config.Each_Section (Ctx.W.Root, Key (Ctx), G);
+
+         when A_Visit_Keys     =>
+            Tabula.Config.Each_Key (Ctx.W.Root, G);
+      end case;
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Gather;
 
    procedure Execute
      (A : Action_Kind; Ctx : in out Step_Context; Evt : Step_Kind) is
@@ -110,17 +145,11 @@ package body Tabula_Steps.Walks is
          when A_Nothing         =>
             null;
 
-         when A_Walk_Strings    =>
-            Visit_Strings (Ctx);
+         when Walk_Action       =>
+            Execute_Walk (A, Ctx);
 
-         when A_Walk_Scaled     =>
-            Visit_Scaled (Ctx);
-
-         when A_Walk_Sections   =>
-            Visit_Sections (Ctx);
-
-         when A_Walk_Keys       =>
-            Visit_Keys (Ctx);
+         when Visit_Action      =>
+            Gather (A, Ctx);
 
          when A_Again           =>
             Then_Take (Ctx, Evt);
@@ -153,28 +182,45 @@ package body Tabula_Steps.Walks is
    use Flow.Machines;
    use Flow.Op;
 
-   Walk_Strings  : constant Ev := (Kind => E_Walk_Strings);
-   Walk_Scaled   : constant Ev := (Kind => E_Walk_Scaled);
-   Walk_Sections : constant Ev := (Kind => E_Walk_Sections);
-   Walk_Keys     : constant Ev := (Kind => E_Walk_Keys);
-   Check_Items   : constant Ev := (Kind => E_Check_Items);
+   Walk_Strings   : constant Ev := (Kind => E_Walk_Strings);
+   Walk_Scaled    : constant Ev := (Kind => E_Walk_Scaled);
+   Walk_Sections  : constant Ev := (Kind => E_Walk_Sections);
+   Walk_Keys      : constant Ev := (Kind => E_Walk_Keys);
+   Check_Items    : constant Ev := (Kind => E_Check_Items);
+   Visit_Strings  : constant Ev := (Kind => E_Visit_Strings);
+   Visit_Scaled   : constant Ev := (Kind => E_Visit_Scaled);
+   Visit_Sections : constant Ev := (Kind => E_Visit_Sections);
+   Visit_Keys     : constant Ev := (Kind => E_Visit_Keys);
 
    --!format off
    Table : constant Transition_Table :=
-     [Unwalked + Walk_Strings  (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Strings                / A_Walk_Strings    >= Walked,
-      Unwalked + Walk_Scaled   (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Scaled   (Scale_Given) / A_Walk_Scaled     >= Walked,
-      Unwalked + Walk_Scaled                 / A_Refuse_Scale    >= Unwalked,
-      Unwalked + Walk_Sections (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Sections               / A_Walk_Sections   >= Walked,
-      Unwalked + Walk_Keys     (No_Table)    / A_Refuse_No_Table >= Unwalked,
-      Unwalked + Walk_Keys                   / A_Walk_Keys       >= Walked,
-      Walked   + Walk_Strings                / A_Again           >= Unwalked,
-      Walked   + Walk_Scaled                 / A_Again           >= Unwalked,
-      Walked   + Walk_Sections               / A_Again           >= Unwalked,
-      Walked   + Walk_Keys                   / A_Again           >= Unwalked,
-      Walked   + Check_Items                 / A_Check_Items     >= Walked];
+     [Unwalked + Walk_Strings   (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Walk_Strings                 / A_Walk_Strings    >= Walked,
+      Unwalked + Walk_Scaled    (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Walk_Scaled    (Scale_Given) / A_Walk_Scaled     >= Walked,
+      Unwalked + Walk_Scaled                  / A_Refuse_Scale    >= Unwalked,
+      Unwalked + Walk_Sections  (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Walk_Sections                / A_Walk_Sections   >= Walked,
+      Unwalked + Walk_Keys      (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Walk_Keys                    / A_Walk_Keys       >= Walked,
+      Unwalked + Visit_Strings  (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Visit_Strings                / A_Visit_Strings   >= Walked,
+      Unwalked + Visit_Scaled   (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Visit_Scaled   (Scale_Given) / A_Visit_Scaled    >= Walked,
+      Unwalked + Visit_Scaled                 / A_Refuse_Scale    >= Unwalked,
+      Unwalked + Visit_Sections (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Visit_Sections               / A_Visit_Sections  >= Walked,
+      Unwalked + Visit_Keys     (No_Table)    / A_Refuse_No_Table >= Unwalked,
+      Unwalked + Visit_Keys                   / A_Visit_Keys      >= Walked,
+      Walked   + Walk_Strings                 / A_Again           >= Unwalked,
+      Walked   + Walk_Scaled                  / A_Again           >= Unwalked,
+      Walked   + Walk_Sections                / A_Again           >= Unwalked,
+      Walked   + Walk_Keys                    / A_Again           >= Unwalked,
+      Walked   + Visit_Strings                / A_Again           >= Unwalked,
+      Walked   + Visit_Scaled                 / A_Again           >= Unwalked,
+      Walked   + Visit_Sections               / A_Again           >= Unwalked,
+      Walked   + Visit_Keys                   / A_Again           >= Unwalked,
+      Walked   + Check_Items                  / A_Check_Items     >= Walked];
    --!format on
 
    Current : State := Unwalked;
