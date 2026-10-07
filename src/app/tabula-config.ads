@@ -119,6 +119,17 @@ package Tabula.Config is
       Key     : String;
       Process : not null access procedure (Item : String));
 
+   --  Walk the numbers of an array knob, each as a whole count of
+   --  Scale's units, taken as Get_Scaled takes one number: an absent key
+   --  does nothing, a non-array warns and does nothing, and each entry
+   --  that is not a number, or is outside Tabula.Decimals.Scaled_Value
+   --  at Scale, warns and is skipped while the walk goes on.
+   procedure Each_Scaled
+     (T       : Table;
+      Key     : String;
+      Scale   : Positive;
+      Process : not null access procedure (Item : Long_Long_Integer));
+
    --  Walk the sub-tables of an array-of-tables knob ([[trades]]),
    --  each carrying the root's label and warner: an absent key does
    --  nothing, a non-array warns and does nothing, each non-table

@@ -50,6 +50,7 @@ package Tabula_Steps is
       E_Check_Present,
       E_Check_Absent,
       E_Walk_Strings,
+      E_Walk_Scaled,
       E_Walk_Sections,
       E_Walk_Keys,
       E_Check_Items,
@@ -228,6 +229,8 @@ package Tabula_Steps is
       Step ("it is present")                                    >= E_Check_Present,
       Step ("it is absent")                                     >= E_Check_Absent,
       Step ("the strings of {word} are walked")                 >= E_Walk_Strings,
+      Step ("the numbers of {word} are walked at a scale of {int}")
+                                                                >= E_Walk_Scaled,
       Step ("the sections of {word} are walked")                >= E_Walk_Sections,
       Step ("the keys are walked")                              >= E_Walk_Keys,
       Step ("the items were {string}")                          >= E_Check_Items,

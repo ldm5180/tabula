@@ -223,6 +223,10 @@ package body Tabula.Config is
       return (Fits => True, Value => Long_Long_Integer (Product));
    end Scaled_Float;
 
+   --  What a number that does not fit at Scale warns, after its key.
+   function Out_Of_Range (Scale : Positive) return String
+   is ("out of range at a scale of" & Scale'Image);
+
    --  A knob read at a scale: Read is meaningful only for a number.
    type Scaled_Knob is record
       Is_Number : Boolean := False;
@@ -271,12 +275,7 @@ package body Tabula.Config is
       if not K.Is_Number then
          Complain (T, Key & Not_A_Number);
       elsif not K.Read.Fits then
-         Complain
-           (T,
-            Key
-            & " is out of range at a scale of"
-            & Scale'Image
-            & "; using default");
+         Complain (T, Key & " is " & Out_Of_Range (Scale) & "; using default");
       else
          return K.Read.Value;
       end if;
@@ -364,60 +363,86 @@ package body Tabula.Config is
       return Fallback;
    end Get;
 
-   procedure Each_String
-     (T       : Table;
-      Key     : String;
-      Process : not null access procedure (Item : String))
+   --  Hand each entry of the array knob Key to Visit, in order: an
+   --  absent key does nothing, silently; a non-array warns and does
+   --  nothing.  The walk every Each_ walker shares.
+   procedure Each_Entry
+     (T     : Table;
+      Key   : String;
+      Visit : not null access procedure (Item : TOML.TOML_Value))
    is
       V : constant TOML.TOML_Value := Lookup (T, Key);
    begin
       if TOML.Is_Null (V) then
          return;
-      end if;
-      if TOML.Kind (V) /= TOML.TOML_Array then
+      elsif TOML.Kind (V) /= TOML.TOML_Array then
          Complain (T, Key & " is not an array; ignoring it");
          return;
       end if;
-
       for I in 1 .. TOML.Length (V) loop
-         declare
-            Item : constant TOML.TOML_Value := TOML.Item (V, I);
-         begin
-            if TOML.Kind (Item) = TOML.TOML_String then
-               Process (TOML.As_String (Item));
-            else
-               Complain (T, "non-string " & Key & " entry skipped");
-            end if;
-         end;
+         Visit (TOML.Item (V, I));
       end loop;
+   end Each_Entry;
+
+   procedure Each_String
+     (T       : Table;
+      Key     : String;
+      Process : not null access procedure (Item : String))
+   is
+      procedure Visit (Item : TOML.TOML_Value);
+
+      procedure Visit (Item : TOML.TOML_Value) is
+      begin
+         if TOML.Kind (Item) = TOML.TOML_String then
+            Process (TOML.As_String (Item));
+         else
+            Complain (T, "non-string " & Key & " entry skipped");
+         end if;
+      end Visit;
+   begin
+      Each_Entry (T, Key, Visit'Access);
    end Each_String;
+
+   procedure Each_Scaled
+     (T       : Table;
+      Key     : String;
+      Scale   : Positive;
+      Process : not null access procedure (Item : Long_Long_Integer))
+   is
+      procedure Visit (Item : TOML.TOML_Value);
+
+      procedure Visit (Item : TOML.TOML_Value) is
+         K : constant Scaled_Knob := Scaled_Knob_Of (Item, Scale);
+      begin
+         if not K.Is_Number then
+            Complain (T, "non-number " & Key & " entry skipped");
+         elsif not K.Read.Fits then
+            Complain (T, Key & " entry " & Out_Of_Range (Scale) & "; skipped");
+         else
+            Process (K.Read.Value);
+         end if;
+      end Visit;
+   begin
+      Each_Entry (T, Key, Visit'Access);
+   end Each_Scaled;
 
    procedure Each_Section
      (T       : Table;
       Key     : String;
       Process : not null access procedure (Item : Table))
    is
-      V : constant TOML.TOML_Value := Lookup (T, Key);
-   begin
-      if TOML.Is_Null (V) then
-         return;
-      end if;
-      if TOML.Kind (V) /= TOML.TOML_Array then
-         Complain (T, Key & " is not an array; ignoring it");
-         return;
-      end if;
+      procedure Visit (Item : TOML.TOML_Value);
 
-      for I in 1 .. TOML.Length (V) loop
-         declare
-            Item : constant TOML.TOML_Value := TOML.Item (V, I);
-         begin
-            if TOML.Kind (Item) = TOML.TOML_Table then
-               Process ((Value => Item, Label => T.Label, Warn => T.Warn));
-            else
-               Complain (T, "non-table " & Key & " entry skipped");
-            end if;
-         end;
-      end loop;
+      procedure Visit (Item : TOML.TOML_Value) is
+      begin
+         if TOML.Kind (Item) = TOML.TOML_Table then
+            Process ((Value => Item, Label => T.Label, Warn => T.Warn));
+         else
+            Complain (T, "non-table " & Key & " entry skipped");
+         end if;
+      end Visit;
+   begin
+      Each_Entry (T, Key, Visit'Access);
    end Each_Section;
 
    --  Whether the file wrote L before R: where the parser first made

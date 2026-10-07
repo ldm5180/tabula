@@ -12,8 +12,8 @@ Two rules hold for every addition:
 - **Text in, text out.**  The CSV reader hands fields over as text and
   the writers take text.  A consumer that wants exact decimals parses
   and prints them itself; tabula forms no number on the way.  The one
-  float the crate touches is a TOML float, and `Get_Scaled` lets it
-  leave at once as an integer.
+  float the crate touches is a TOML float, and `Get_Scaled` (or
+  `Each_Scaled`, for a list) lets it leave at once as an integer.
 - **The reading policy stands, and nothing raises.**  An ABSENT knob
   silently keeps the caller's fallback (a config file states only what
   it changes); a PRESENT but wrong-typed, out-of-range, or

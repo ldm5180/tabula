@@ -324,6 +324,86 @@ package body Tabula_Config_Tests is
       Assert (Warned ("fancy is not a number"), "is not a number");
    end Test_Scaled_Range;
 
+   --  The numbers Each_Scaled visits in Root's list Key at Scale, each
+   --  followed by a comma.
+   function Scaled_Items
+     (Root : Table; Key : String; Scale : Positive) return String
+   is
+      Seen : Unbounded_String;
+
+      procedure Collect (Item : Long_Long_Integer);
+
+      procedure Collect (Item : Long_Long_Integer) is
+         Image : constant String := Item'Image;
+      begin
+         Append
+           (Seen,
+            (if Item < 0 then Image else Image (Image'First + 1 .. Image'Last))
+            & ",");
+      end Collect;
+   begin
+      Each_Scaled (Root, Key, Scale, Collect'Access);
+      return To_String (Seen);
+   end Scaled_Items;
+
+   --  A list of numbers at a scale: each kind of number as Get_Scaled
+   --  takes it, in order, silently.
+   procedure Test_Scaled_List (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample
+        ("targets = [15, ""0.0210"", 0.2621, -7]"
+         & ASCII.LF
+         & "ties = [0.125, ""-0.125"", -0.125]",
+         Root);
+
+      Assert
+        (Scaled_Items (Root, "targets", 1_000_000)
+         = "15000000,21000,262100,-7000000,",
+         "an integer, a quoted decimal and a float, in order: "
+         & Scaled_Items (Root, "targets", 1_000_000));
+      Assert
+        (Scaled_Items (Root, "ties", 100) = "13,-13,-13,",
+         "each tie rounds away from zero: "
+         & Scaled_Items (Root, "ties", 100));
+      Assert (Scaled_Items (Root, "absent", 10) = "", "absent: nothing");
+      Assert (Silent, "all of it silently");
+   end Test_Scaled_List;
+
+   --  A list's entry that is not a number, or does not fit, warns and is
+   --  skipped, and the walk goes on; a non-list warns and walks nothing.
+   procedure Test_Scaled_List_Skips
+     (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Root : Table;
+   begin
+      Parse_Sample
+        ("levels = [1, ""x"", 9223372036854775807, true, nan, ""1e3"", 2]"
+         & ASCII.LF
+         & "scalar = 1",
+         Root);
+
+      Assert
+        (Scaled_Items (Root, "levels", 10) = "10,20,",
+         "the numbers that fit, in order: "
+         & Scaled_Items (Root, "levels", 10));
+      Assert
+        (Warned ("test config: non-number levels entry skipped"),
+         "a non-number entry warns: " & Warnings_Text);
+      Assert
+        (Warned
+           ("test config: levels entry out of range at a scale of 10;"
+            & " skipped"),
+         "an entry too large warns, with the scale: " & Warnings_Text);
+
+      Assert (Scaled_Items (Root, "scalar", 10) = "", "a non-list: nothing");
+      Assert
+        (Warned ("test config: scalar is not an array; ignoring it"),
+         "and warns as the other walkers do");
+   end Test_Scaled_List_Skips;
+
    --  A sample of every shape a date or time knob may take.
    Dates_Sample : constant String :=
      "bare = 2020-01-01"
@@ -475,6 +555,9 @@ package body Tabula_Config_Tests is
       Register_Routine (T, Test_Times'Access, "a time, bare or quoted");
       Register_Routine
         (T, Test_Scaled_Range'Access, "a scaled number that does not fit");
+      Register_Routine (T, Test_Scaled_List'Access, "a list at a scale");
+      Register_Routine
+        (T, Test_Scaled_List_Skips'Access, "a scaled list's bad entries");
    end Register_Tests;
 
    overriding
