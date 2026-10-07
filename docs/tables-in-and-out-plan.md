@@ -369,3 +369,23 @@ procedure Each_Row
   instantiation per pair of context and callback; distinct primitive
   names (`Visit_String`, `Visit_Key`, ...) are what let one type be
   both a string and a key visitor, whose items are both `String`.
+  As built:
+  - The listener's `Load` and `Parse` return a `Load_Outcome` (status
+    and message) rather than two out parameters: five parameters and
+    two results, where the warner's forms have six and three.  The
+    table keeps a private sink (warner or listener access), and stores
+    the listener with `'Unchecked_Access`, so the caller's object must
+    outlive the table and every table taken from it, as the spec says.
+  - The procedure forms are adapters: a private visitor whose
+    discriminant is the procedure (an anonymous access-to-subprogram
+    discriminant), so no walk is written twice and the library holds
+    no nested subprogram body.  The array walks share `Each_Entry`
+    over a private entry visitor per kind, declared in a nested
+    package spec because an interface's primitives must be declared
+    in one.
+  - The test fixture gained a `Recorder` (a listener) and a
+    `Gatherer` (all four config visitors at once); the features hold
+    a scenario's recorder on the heap, since fabula copies the world
+    per step.  The warner's own recorder, the region states and the
+    CSV procedure form's gatherer stay package state in the tests:
+    the procedure forms they exercise carry no object.

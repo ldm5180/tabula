@@ -65,6 +65,8 @@ keep the same spirit, and two rules hold for every part of it:
   Header)`, `Put (W, Fields)`, `Close (W, Ok)`, a field quoted when it
   holds a comma, a quote or a line break, buffered beside the path and
   landed whole by `Close`; a row unlike the header is refused.
+  `Each_Row` hands the rows to a procedure or to a `Row_Visitor` object
+  of the caller's own.
 - **`Tabula.Csv_Scan`** — the proven scanner under it, an sml machine
   over one character at a time, its record bounded and a record past
   the bounds refused, never cut.

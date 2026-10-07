@@ -2,7 +2,8 @@ Feature: A reader keeps what it hears in its own objects
 
   A reader may hand tabula objects of its own rather than procedures: a
   listener that hears what a table complains about, carried by every
-  section taken from it, and a visitor that a walk hands each item to.
+  section taken from it, and a visitor that a walk hands each item to,
+  a walk of a CSV file's rows among them.
   What they hear and gather stays in the reader's objects, so two
   readers never share it.  What is read, walked and complained about
   is the same as through procedures.
@@ -77,3 +78,17 @@ Feature: A reader keeps what it hears in its own objects
       """
     When the keys are visited
     Then the items were "zeta,alpha,box"
+
+  Scenario: A reader's visitor gathers the rows of a CSV file
+    Given a CSV file:
+      ```csv
+      name,qty
+      alpha,1
+      beta,2
+      ```
+    When its rows are visited
+    Then the rows read
+    And the rows by column name are:
+      | qty | name  |
+      | 1   | alpha |
+      | 2   | beta  |

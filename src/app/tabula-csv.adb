@@ -85,11 +85,10 @@ package body Tabula.Csv is
    function Fits_Header (Rd : Reading) return Boolean
    is (Csv_Scan.Field_Count (Rd.Scan.all) = Natural (Rd.Head.Names.Length));
 
-   --  The record in hand: the header, a row for Process, or a ragged
+   --  The record in hand: the header, a row for Visitor, or a ragged
    --  record that stops the read.
    procedure Take_Record
-     (Rd : in out Reading; Process : not null access procedure (Row : Csv.Row))
-   is
+     (Rd : in out Reading; Visitor : in out Row_Visitor'Class) is
    begin
       if not Rd.Has_Header then
          Keep_Header (Rd);
@@ -98,7 +97,8 @@ package body Tabula.Csv is
          Rd.Stopped := True;
          return;
       else
-         Process (Row'(Scan => Rd.Scan, Head => Rd.Head'Unchecked_Access));
+         Visitor.Visit_Row
+           (Row'(Scan => Rd.Scan, Head => Rd.Head'Unchecked_Access));
       end if;
       Csv_Scan.Next (Rd.Scan.all);
    end Take_Record;
@@ -116,31 +116,30 @@ package body Tabula.Csv is
      (Rd      : in out Reading;
       Bytes   : Block;
       Last    : Stream_Element_Offset;
-      Process : not null access procedure (Row : Csv.Row)) is
+      Visitor : in out Row_Visitor'Class) is
    begin
       for I in Bytes'First .. Last loop
          Csv_Scan.Feed (Rd.Scan.all, Character'Val (Bytes (I)));
          if Csv_Scan.Ready (Rd.Scan.all) then
-            Take_Record (Rd, Process);
+            Take_Record (Rd, Visitor);
          end if;
          exit when Ended (Rd);
       end loop;
    end Feed_Block;
 
-   procedure Read_All
-     (Rd : in out Reading; Process : not null access procedure (Row : Csv.Row))
+   procedure Read_All (Rd : in out Reading; Visitor : in out Row_Visitor'Class)
    is
       Bytes : Block;
       Last  : Stream_Element_Offset;
    begin
       while not Ended (Rd) and then not End_Of_File (Rd.File) loop
          Read (Rd.File, Bytes, Last);
-         Feed_Block (Rd, Bytes, Last, Process);
+         Feed_Block (Rd, Bytes, Last, Visitor);
       end loop;
       if not Ended (Rd) then
          Csv_Scan.Finish (Rd.Scan.all);
          if Csv_Scan.Ready (Rd.Scan.all) then
-            Take_Record (Rd, Process);
+            Take_Record (Rd, Visitor);
          end if;
       end if;
    end Read_All;
@@ -152,9 +151,7 @@ package body Tabula.Csv is
        else Rd.Result);
 
    procedure Each_Row
-     (Path    : String;
-      Process : not null access procedure (Row : Csv.Row);
-      Result  : out Outcome)
+     (Path : String; Visitor : in out Row_Visitor'Class; Result : out Outcome)
    is
       Rd : Reading;
    begin
@@ -163,7 +160,7 @@ package body Tabula.Csv is
          return;
       end if;
       Open (Rd.File, In_File, Path);
-      Read_All (Rd, Process);
+      Read_All (Rd, Visitor);
       Result := Outcome_Of (Rd);
    exception
       when
@@ -174,6 +171,28 @@ package body Tabula.Csv is
         | Ada.IO_Exceptions.Data_Error
       =>
          Result := (Malformed, 0);
+   end Each_Row;
+
+   --  The rows to a procedure: a visitor whose discriminant is the
+   --  procedure, over the rows to a visitor.
+   type Row_Process (Process : not null access procedure (Row : Csv.Row)) is
+      limited new Row_Visitor
+   with null record;
+
+   overriding
+   procedure Visit_Row (V : in out Row_Process; Row : Csv.Row) is
+   begin
+      V.Process (Row);
+   end Visit_Row;
+
+   procedure Each_Row
+     (Path    : String;
+      Process : not null access procedure (Row : Csv.Row);
+      Result  : out Outcome)
+   is
+      Visitor : Row_Process (Process);
+   begin
+      Each_Row (Path, Visitor, Result);
    end Each_Row;
 
    ---------------------------------------------------------------------

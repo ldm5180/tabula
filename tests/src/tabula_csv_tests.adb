@@ -26,18 +26,40 @@ package body Tabula_Csv_Tests is
    function Trimmed (Image : String) return String
    is (Ada.Strings.Fixed.Trim (Image, Ada.Strings.Left));
 
-   --  Every row seen, each "line:" and then name=value pairs read by
+   --  Row as it is noted: "line:" and then name=value pairs read by
    --  name, ending in a semicolon.
+   function Noted (Row : Tabula.Csv.Row) return String is
+      Text : Unbounded_String :=
+        To_Unbounded_String (Trimmed (Line (Row)'Image) & ":");
+   begin
+      for I in 1 .. Field_Count (Row) loop
+         Append (Text, Column (Row, I) & "=" & Field (Row, Column (Row, I)));
+         Append (Text, (if I < Field_Count (Row) then "," else ";"));
+      end loop;
+      return To_String (Text);
+   end Noted;
+
+   --  Every row seen, each noted.
    Seen : Unbounded_String;
 
    procedure Note (Row : Tabula.Csv.Row) is
    begin
-      Append (Seen, Trimmed (Line (Row)'Image) & ":");
-      for I in 1 .. Field_Count (Row) loop
-         Append (Seen, Column (Row, I) & "=" & Field (Row, Column (Row, I)));
-         Append (Seen, (if I < Field_Count (Row) then "," else ";"));
-      end loop;
+      Append (Seen, Noted (Row));
    end Note;
+
+   --  A row visitor a test owns: every row it was handed, each noted.
+   type Noter is limited new Row_Visitor with record
+      Seen : Unbounded_String;
+   end record;
+
+   overriding
+   procedure Visit_Row (V : in out Noter; Row : Tabula.Csv.Row);
+
+   overriding
+   procedure Visit_Row (V : in out Noter; Row : Tabula.Csv.Row) is
+   begin
+      Append (V.Seen, Noted (Row));
+   end Visit_Row;
 
    --  Read Text as a file; what was seen is in Seen.
    function Read (Text : String) return Outcome is
@@ -252,6 +274,42 @@ package body Tabula_Csv_Tests is
       Assert (Contents (Path) = "old", "a writer never closed writes nothing");
    end Test_Write_Refusals;
 
+   --  Text as the scratch file, its rows handed to a fresh visitor;
+   --  what came of it, and what the visitor noted.
+   procedure Visit
+     (Text : String; Result : out Outcome; Seen : out Unbounded_String)
+   is
+      Rows : Noter;
+   begin
+      Clear_Scratch (File_Name);
+      Write_File (Scratch (File_Name), Text);
+      Each_Row (Scratch (File_Name), Rows, Result);
+      Seen := Rows.Seen;
+   end Visit;
+
+   --  The rows of a file handed to a visitor the test owns, as they are
+   --  to a procedure: in order with their lines, up to a refusal, which
+   --  is the outcome; a missing file hands over nothing.
+   procedure Test_Row_Visitor (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      R    : Outcome;
+      Seen : Unbounded_String;
+      None : Noter;
+   begin
+      Visit ("a,b" & LF & "1,2" & LF & "3,4" & LF, R, Seen);
+      Assert (R = (Read, 0), "a file reads: " & R.Status'Image);
+      Assert
+        (To_String (Seen) = "2:a=1,b=2;3:a=3,b=4;",
+         "each row to the visitor: " & To_String (Seen));
+      Visit ("a,b" & LF & "1,2" & LF & "3" & LF & "4,5", R, Seen);
+      Assert (R = (Ragged, 3), "ragged at its line:" & R.Line'Image);
+      Assert (To_String (Seen) = "2:a=1,b=2;", "the rows before it");
+      Clear_Scratch (File_Name);
+      Each_Row (Scratch (File_Name), None, R);
+      Assert (R = (Missing, 0), "no file is missing");
+      Assert (Length (None.Seen) = 0, "and hands over nothing");
+   end Test_Row_Visitor;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -262,6 +320,7 @@ package body Tabula_Csv_Tests is
       Register_Routine (T, Test_Write'Access, "a file written reads back");
       Register_Routine
         (T, Test_Write_Refusals'Access, "what a writer refuses");
+      Register_Routine (T, Test_Row_Visitor'Access, "rows to a visitor");
    end Register_Tests;
 
    overriding

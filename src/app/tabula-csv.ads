@@ -56,6 +56,15 @@ package Tabula.Csv is
       Process : not null access procedure (Row : Csv.Row);
       Result  : out Outcome);
 
+   --  What Each_Row hands each row to, in an object of the caller's own.
+   type Row_Visitor is limited interface;
+
+   procedure Visit_Row (V : in out Row_Visitor; Row : Csv.Row) is abstract;
+
+   --  Each_Row, handing each row to Visitor.
+   procedure Each_Row
+     (Path : String; Visitor : in out Row_Visitor'Class; Result : out Outcome);
+
    --  A CSV file being written: a header, then rows of as many fields,
    --  buffered beside the path and landed whole by Close.  A row unlike
    --  the header, or one Each_Row could not read back (past
