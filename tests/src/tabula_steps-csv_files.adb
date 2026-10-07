@@ -22,6 +22,7 @@ package body Tabula_Steps.Csv_Files is
       A_Give_Missing,
       A_Write,
       A_Read,
+      A_Visit,
       --  Refusing a step written wrong.
       A_Refuse_Doc,
       A_Refuse_Table,
@@ -37,7 +38,7 @@ package body Tabula_Steps.Csv_Files is
       A_Check_Written,
       A_Check_Read_Back);
 
-   subtype Give_Action is Action_Kind range A_Give .. A_Read;
+   subtype Give_Action is Action_Kind range A_Give .. A_Visit;
    subtype Refuse_Action is Action_Kind range A_Refuse_Doc .. A_Refuse_Row;
    subtype Check_Action is Action_Kind range A_Check_Read .. A_Check_Read_Back;
 
@@ -78,45 +79,77 @@ package body Tabula_Steps.Csv_Files is
    end Evaluate;
 
    ---------------------------------------------------------------------
-   --  Giving and reading a file.  A read hands its rows to Keep, which
-   --  gathers them here; Gather_Rows then moves them into the world.
+   --  Giving and reading a file.  A read hands its rows to a gatherer,
+   --  whose rows then go into the world.
    ---------------------------------------------------------------------
 
-   Columns : Tabula.Text_Lists.Vector;
-   Fields  : Row_Lists.Vector;
-   Named   : Row_Lists.Vector;
+   --  The rows of a read: the header's names, and each row's fields by
+   --  position and, in the header's order, by name.
+   type Row_Gatherer is limited new Tabula.Csv.Row_Visitor with record
+      Columns : Tabula.Text_Lists.Vector;
+      Fields  : Row_Lists.Vector;
+      Named   : Row_Lists.Vector;
+   end record;
 
-   procedure Keep_Columns (Row : Tabula.Csv.Row) is
+   overriding
+   procedure Visit_Row (G : in out Row_Gatherer; Row : Tabula.Csv.Row);
+
+   procedure Keep_Columns (G : in out Row_Gatherer; Row : Tabula.Csv.Row) is
    begin
       for I in 1 .. Tabula.Csv.Field_Count (Row) loop
-         Columns.Append (Tabula.Csv.Column (Row, I));
+         G.Columns.Append (Tabula.Csv.Column (Row, I));
       end loop;
    end Keep_Columns;
 
-   procedure Keep (Row : Tabula.Csv.Row) is
+   overriding
+   procedure Visit_Row (G : in out Row_Gatherer; Row : Tabula.Csv.Row) is
       By_Position, By_Name : Tabula.Text_Lists.Vector;
    begin
-      if Columns.Is_Empty then
-         Keep_Columns (Row);
+      if G.Columns.Is_Empty then
+         Keep_Columns (G, Row);
       end if;
       for I in 1 .. Tabula.Csv.Field_Count (Row) loop
          By_Position.Append (Tabula.Csv.Field (Row, I));
          By_Name.Append (Tabula.Csv.Field (Row, Tabula.Csv.Column (Row, I)));
       end loop;
-      Fields.Append (By_Position);
-      Named.Append (By_Name);
+      G.Fields.Append (By_Position);
+      G.Named.Append (By_Name);
+   end Visit_Row;
+
+   --  The rows G gathered, as the world's, and G empty again.
+   procedure Into_World (G : in out Row_Gatherer; Ctx : in out Step_Context) is
+   begin
+      Ctx.W.Columns := G.Columns;
+      Ctx.W.Fields := G.Fields;
+      Ctx.W.Named := G.Named;
+      G.Columns.Clear;
+      G.Fields.Clear;
+      G.Named.Clear;
+   end Into_World;
+
+   --  What the read through a procedure gathers into: package state,
+   --  because the procedure form carries no object of its own.
+   Gathered : Row_Gatherer;
+
+   procedure Keep (Row : Tabula.Csv.Row) is
+   begin
+      Gathered.Visit_Row (Row);
    end Keep;
 
-   procedure Gather_Rows (Ctx : in out Step_Context) is
+   --  The file's rows, handed to a procedure.
+   procedure Rows_To_Procedure (Ctx : in out Step_Context) is
    begin
-      Columns.Clear;
-      Fields.Clear;
-      Named.Clear;
       Tabula.Csv.Each_Row (To_String (Ctx.W.Csv), Keep'Access, Ctx.W.Outcome);
-      Ctx.W.Columns := Columns;
-      Ctx.W.Fields := Fields;
-      Ctx.W.Named := Named;
-   end Gather_Rows;
+      Into_World (Gathered, Ctx);
+   end Rows_To_Procedure;
+
+   --  The file's rows, handed to a visitor of the scenario's own.
+   procedure Rows_To_Visitor (Ctx : in out Step_Context) is
+      Rows : Row_Gatherer;
+   begin
+      Tabula.Csv.Each_Row (To_String (Ctx.W.Csv), Rows, Ctx.W.Outcome);
+      Into_World (Rows, Ctx);
+   end Rows_To_Visitor;
 
    procedure Execute_Refuse (A : Refuse_Action; Ctx : in out Step_Context) is
    begin
@@ -254,7 +287,10 @@ package body Tabula_Steps.Csv_Files is
             Write_Rows (Ctx);
 
          when A_Read         =>
-            Gather_Rows (Ctx);
+            Rows_To_Procedure (Ctx);
+
+         when A_Visit        =>
+            Rows_To_Visitor (Ctx);
       end case;
    end Execute_Give;
 
@@ -352,6 +388,7 @@ package body Tabula_Steps.Csv_Files is
    Give_Csv           : constant Ev := (Kind => E_Give_Csv);
    Give_Missing_Csv   : constant Ev := (Kind => E_Give_Missing_Csv);
    Read_Rows          : constant Ev := (Kind => E_Read_Rows);
+   Visit_Rows         : constant Ev := (Kind => E_Visit_Rows);
    Check_Rows_Read    : constant Ev := (Kind => E_Check_Rows_Read);
    Check_Row_Count    : constant Ev := (Kind => E_Check_Row_Count);
    Check_By_Name      : constant Ev := (Kind => E_Check_By_Name);
@@ -374,6 +411,7 @@ package body Tabula_Steps.Csv_Files is
       Given   + Check_Written                  / A_Check_Written   >= Given,
 
       Given   + Read_Rows                      / A_Read            >= Read,
+      Given   + Visit_Rows                     / A_Visit           >= Read,
 
       Read    + Check_Rows_Read                / A_Check_Read      >= Read,
       Read    + Check_Row_Count                / A_Check_Count     >= Read,
