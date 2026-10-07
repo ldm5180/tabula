@@ -1,3 +1,5 @@
+with Tabula.Config.Values;
+
 with Tabula_Steps.Configs;
 with Tabula_Steps.Flows;
 with Tabula_World;
@@ -22,6 +24,8 @@ package body Tabula_Steps.Walks is
       A_Visit_Keys,
       A_Visit_String_Lists,
       A_Visit_Scaled_Lists,
+      A_Visit_Values,
+      A_Walk_Values,
       A_Again,
       A_Refuse_No_Table,
       A_Refuse_Scale,
@@ -168,6 +172,32 @@ package body Tabula_Steps.Walks is
       end case;
    end Gather_Lists;
 
+   --  Every value of the table, handed to a value visitor of the
+   --  scenario's own, whose items are then the world's.
+   procedure Gather_Values (Ctx : in out Step_Context) is
+      G : Tabula_World.Value_Gatherer;
+   begin
+      Tabula.Config.Values.Each_Value (Ctx.W.Root, G);
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Gather_Values;
+
+   --  Every value of the table, handed to a procedure that gathers it
+   --  as the visitor does.
+   procedure Collect_Values (Ctx : in out Step_Context) is
+      G : Tabula_World.Value_Gatherer;
+      procedure Take
+        (Key  : String;
+         Kind : Tabula.Config.Values.Value_Kind;
+         Text : String;
+         Item : Tabula.Config.Table) is
+      begin
+         G.Visit_Value (Key, Kind, Text, Item);
+      end Take;
+   begin
+      Tabula.Config.Values.Each_Value (Ctx.W.Root, Take'Access);
+      Ctx.W.Items := To_Unbounded_String (Tabula_World.Items (G));
+   end Collect_Values;
+
    procedure Execute
      (A : Action_Kind; Ctx : in out Step_Context; Evt : Step_Kind) is
    begin
@@ -183,6 +213,12 @@ package body Tabula_Steps.Walks is
 
          when List_Action       =>
             Gather_Lists (A, Ctx);
+
+         when A_Visit_Values    =>
+            Gather_Values (Ctx);
+
+         when A_Walk_Values     =>
+            Collect_Values (Ctx);
 
          when A_Again           =>
             Then_Take (Ctx, Evt);
@@ -226,6 +262,8 @@ package body Tabula_Steps.Walks is
    Visit_Keys         : constant Ev := (Kind => E_Visit_Keys);
    Visit_String_Lists : constant Ev := (Kind => E_Visit_String_Lists);
    Visit_Scaled_Lists : constant Ev := (Kind => E_Visit_Scaled_Lists);
+   Visit_Values       : constant Ev := (Kind => E_Visit_Values);
+   Walk_Values        : constant Ev := (Kind => E_Walk_Values);
 
    --!format off
    Table : constant Transition_Table :=
@@ -252,6 +290,10 @@ package body Tabula_Steps.Walks is
       Unwalked + Visit_Scaled_Lists (No_Table)    / A_Refuse_No_Table    >= Unwalked,
       Unwalked + Visit_Scaled_Lists (Scale_Given) / A_Visit_Scaled_Lists >= Walked,
       Unwalked + Visit_Scaled_Lists               / A_Refuse_Scale       >= Unwalked,
+      Unwalked + Visit_Values       (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Visit_Values                     / A_Visit_Values       >= Walked,
+      Unwalked + Walk_Values        (No_Table)    / A_Refuse_No_Table    >= Unwalked,
+      Unwalked + Walk_Values                      / A_Walk_Values        >= Walked,
       Walked   + Walk_Strings                     / A_Again              >= Unwalked,
       Walked   + Walk_Scaled                      / A_Again              >= Unwalked,
       Walked   + Walk_Sections                    / A_Again              >= Unwalked,
@@ -262,6 +304,8 @@ package body Tabula_Steps.Walks is
       Walked   + Visit_Keys                       / A_Again              >= Unwalked,
       Walked   + Visit_String_Lists               / A_Again              >= Unwalked,
       Walked   + Visit_Scaled_Lists               / A_Again              >= Unwalked,
+      Walked   + Visit_Values                     / A_Again              >= Unwalked,
+      Walked   + Walk_Values                      / A_Again              >= Unwalked,
       Walked   + Check_Items                      / A_Check_Items        >= Walked];
    --!format on
 
