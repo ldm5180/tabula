@@ -425,7 +425,8 @@ package body Tabula.Config is
    end Get;
 
    ---------------------------------------------------------------------
-   --  The walks.  Each array walk is the one Each_Entry, handing every
+   --  The walks.  Each array walk is the one Each_Item, over a knob's
+   --  array (Each_Entry) or a list's own (Each_List_Entry), handing every
    --  entry to the private entry visitor of its kind, which hands what it
    --  takes to the caller's visitor and complains of the rest.
    ---------------------------------------------------------------------
@@ -612,6 +613,14 @@ package body Tabula.Config is
       Entries : Scaled_Entries (Scale, Visitor'Access);
    begin
       Each_Entry (T, Key, Entries);
+   end Each_Scaled;
+
+   procedure Each_Scaled
+     (List : Table; Scale : Positive; Visitor : in out Scaled_Visitor'Class)
+   is
+      Entries : Scaled_Entries (Scale, Visitor'Access);
+   begin
+      Each_List_Entry (List, Entries);
    end Each_Scaled;
 
    procedure Each_Section

@@ -230,7 +230,8 @@ package Tabula.Config is
    --  is the options and each inner list one option's value
    --  (entry_targets = [[15, 25, 35], [20, 30]]) -- handing each inner
    --  list to Visitor as a table carrying T's label and warner or
-   --  listener: an absent key does nothing, a non-array warns and does
+   --  listener, whose entries the keyless Each_String and Each_Scaled
+   --  below walk: an absent key does nothing, a non-array warns and does
    --  nothing.
    procedure Each_List
      (T : Table; Key : String; Visitor : in out List_Visitor'Class);
@@ -241,6 +242,14 @@ package Tabula.Config is
    --  (entry_targets[2]), and is skipped.  A table that is not such a
    --  list walks nothing, silently.
    procedure Each_String (List : Table; Visitor : in out String_Visitor'Class);
+
+   --  Walk the numbers of List, a list a walk of a list of lists handed
+   --  over, at Scale, as Each_Scaled walks a knob's: each entry that is
+   --  not a number, or does not fit, warns, naming the list as the
+   --  keyless Each_String does, and is skipped.  A table that is not
+   --  such a list walks nothing, silently.
+   procedure Each_Scaled
+     (List : Table; Scale : Positive; Visitor : in out Scaled_Visitor'Class);
 
 private
 

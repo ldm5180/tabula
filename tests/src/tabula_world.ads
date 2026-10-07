@@ -100,10 +100,17 @@ package Tabula_World is
 
    function Items (G : Gatherer) return String;
 
-   --  A list visitor a reader owns: each list it was handed, its strings
-   --  gathered as a Gatherer gathers them and bracketed, the lists
-   --  comma-separated ("[a,b],[c]").
-   type List_Gatherer is limited new Tabula.Config.List_Visitor with private;
+   --  What a List_Gatherer reads of each list: its strings, or its
+   --  numbers at a scale.
+   type Entry_Kind is (Strings, Numbers);
+
+   --  A list visitor a reader owns: each list it was handed, its entries
+   --  of Kind (numbers at Scale) gathered as a Gatherer gathers them and
+   --  bracketed, the lists comma-separated ("[a,b],[c]").
+   type List_Gatherer
+     (Kind  : Entry_Kind := Strings;
+      Scale : Positive := 1)
+   is limited new Tabula.Config.List_Visitor with private;
 
    overriding
    procedure Visit_List (G : in out List_Gatherer; Item : Tabula.Config.Table);
@@ -160,7 +167,10 @@ private
       Items : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
-   type List_Gatherer is limited new Tabula.Config.List_Visitor with record
+   type List_Gatherer
+     (Kind  : Entry_Kind := Strings;
+      Scale : Positive := 1)
+   is limited new Tabula.Config.List_Visitor with record
       Lists : Gatherer;
    end record;
 

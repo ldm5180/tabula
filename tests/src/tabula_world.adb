@@ -170,7 +170,13 @@ package body Tabula_World is
    is
       Entries : Gatherer;
    begin
-      Tabula.Config.Each_String (Item, Entries);
+      case G.Kind is
+         when Strings =>
+            Tabula.Config.Each_String (Item, Entries);
+
+         when Numbers =>
+            Tabula.Config.Each_Scaled (Item, G.Scale, Entries);
+      end case;
       Add (G.Lists, "[" & Items (Entries) & "]");
    end Visit_List;
 

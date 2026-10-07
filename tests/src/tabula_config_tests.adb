@@ -688,6 +688,8 @@ package body Tabula_Config_Tests is
      & ASCII.LF
      & "filters = [[""skip EOM""], [""skip EOM"", 3, ""skip FOMC""]]"
      & ASCII.LF
+     & "levels = [[1, ""x""], [9223372036854775807]]"
+     & ASCII.LF
      & "scalar = 1";
 
    --  A visitor that counts the lists a walk handed it.
@@ -753,6 +755,37 @@ package body Tabula_Config_Tests is
       Assert (not Warned (Heard, "not an array"), "and silently");
    end Test_List_Strings;
 
+   --  A list a grid walk hands over is walked for its numbers at a scale
+   --  as a knob is, and an entry that is not a number, or does not fit,
+   --  is complained of by the option's name and skipped.
+   procedure Test_List_Scaled (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Heard   : aliased Recorder;
+      Root    : Table;
+      Result  : Load_Outcome;
+      Targets : List_Gatherer (Numbers, Scale => 1);
+      Levels  : List_Gatherer (Numbers, Scale => 10);
+   begin
+      Parse (Grid_Sample, "grid config", Heard'Access, Root, Result);
+      Each_List (Root, "targets", Targets);
+      Assert
+        (Items (Targets) = "[15,25,35],[20,30]",
+         "each list's numbers: " & Items (Targets));
+      Assert (Silent (Heard), "silently");
+      Each_List (Root, "levels", Levels);
+      Assert
+        (Items (Levels) = "[10],[]", "what fits, by list: " & Items (Levels));
+      Assert
+        (Warned (Heard, "grid config: non-number levels[1] entry skipped"),
+         "the non-number warns, naming its list: " & Warnings_Text (Heard));
+      Assert
+        (Warned
+           (Heard,
+            "grid config: levels[2] entry out of range at a scale of 10;"
+            & " skipped"),
+         "the one too large warns: " & Warnings_Text (Heard));
+   end Test_List_Scaled;
+
    overriding
    procedure Register_Tests (T : in out Test) is
    begin
@@ -792,6 +825,8 @@ package body Tabula_Config_Tests is
       Register_Routine (T, Test_List_Walk'Access, "a grid's lists, walked");
       Register_Routine
         (T, Test_List_Strings'Access, "a grid's lists of strings");
+      Register_Routine
+        (T, Test_List_Scaled'Access, "a grid's lists of numbers");
    end Register_Tests;
 
    overriding
