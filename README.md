@@ -27,7 +27,8 @@ keep the same spirit, and two rules hold for every part of it:
   `Section`, overloaded `Get` for Boolean / Natural (with a `Min` guard) /
   String (with `Require_Non_Empty`) / Long_Float, `Get_Scaled` for a
   number as a whole count of a scale's units (no floating point needed:
-  0.2621 at a scale of a million is 262100), `Get` for a `Tabula.Date`
+  0.2621 at a scale of a million is 262100) and `Each_Scaled` for a list
+  of them (`[15, "0.0210", 0.2621]`), `Get` for a `Tabula.Date`
   or a `Tabula.Time_Of_Day` (bare `2020-01-01` / `09:30:00` or quoted;
   a day the calendar lacks is refused), `Each_String` for string
   arrays, `Each_Section` for arrays of tables, and `Each_Key` for the

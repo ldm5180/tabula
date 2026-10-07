@@ -4,7 +4,9 @@ Feature: A knob reads with its type, or keeps its default
   states only what it changes.  A present knob of the wrong type,
   out of range, or empty when substance is required keeps the
   default and is complained about through the handler the caller
-  gave, by its table's label and its name.  No getter raises.
+  gave, by its table's label and its name.  No getter raises.  A
+  list of numbers is walked at a scale the way one number is read,
+  and an entry that is not a number is complained about and skipped.
 
   Background:
     Given a config labelled "test config":
@@ -26,6 +28,8 @@ Feature: A knob reads with its type, or keeps its default
       open = 09:30:00
       quoted_open = "16:15:00"
       precise = 09:30:00.5
+      targets = [15, "0.0210", 0.2621]
+      levels = [1, "x", 9223372036854775807, 2]
       """
 
   Scenario: A boolean reads
@@ -96,6 +100,26 @@ Feature: A knob reads with its type, or keeps its default
   Scenario: An absent scaled knob keeps its default, silently
     When the number absent is read at a scale of 100 with default -5
     Then the reading is the default
+    And nothing was warned
+
+  Scenario: A list of decimals reads as scaled integers
+    When the numbers of targets are walked at a scale of 1000000
+    Then the items were "15000000,21000,262100"
+    And nothing was warned
+
+  Scenario: A list's entry that is not a number, or does not fit, is complained about and skipped
+    When the numbers of levels are walked at a scale of 10
+    Then the items were "10,20"
+    And levels was complained about
+
+  Scenario: A scaled knob that is not a list walks nothing, and is complained about
+    When the numbers of count are walked at a scale of 10
+    Then the items were ""
+    And count was complained about
+
+  Scenario: An absent list of numbers walks nothing, silently
+    When the numbers of absent are walked at a scale of 10
+    Then the items were ""
     And nothing was warned
 
   Scenario: A bare date reads as its year, month and day

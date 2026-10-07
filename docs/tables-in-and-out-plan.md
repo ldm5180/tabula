@@ -2,8 +2,9 @@
 
 **Status (2026-10-06):** built.  B1-B7 are on `tables-in-and-out`, one
 commit per cycle; every gate passes (suite, features, format,
-validation, proof).  What differs from the plan below is in the last
-revision note.
+validation, proof).  What differs from the plan below is in the
+revision notes.  B8, a list of numbers at a scale, was added after
+B7 at the user's decision and is built.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -39,9 +40,9 @@ Two things are true of every addition:
   arb-ada and firescan-ada depend on them.
 - Do not add a dependency.  The crate depends on ada_toml and, for
   tests, aunit and fabula.
-- Do not form a floating-point value in new code.  `Get_Scaled` is
-  the one place a TOML float is touched, and it leaves as an
-  integer.
+- Do not form a floating-point value in new code.  `Get_Scaled` (and
+  `Each_Scaled`, through the same conversion) is the one place a TOML
+  float is touched, and it leaves as an integer.
 - Do not raise from a new subprogram.  Outcomes and warnings.
 - Do not guess a CSV dialect.  Comma, double quote, a doubled quote
   inside quotes, LF or CRLF; anything else is the caller's to say.
@@ -196,12 +197,36 @@ procedure Each_Row
 - **RED first:** `csv.feature`: "A file written is read back the
   same", with a field holding a comma, a quote and a line break.
 
+### B8 -- A list of numbers as scaled integers
+
+- **Where:** `src/app/tabula-config.ads`, beside `Each_String`; the
+  body's `Scaled_Knob_Of`, which `Get_Scaled` reads one number
+  through.
+- **What is wrong:** statera's config holds lists of decimals
+  (`entry_targets = [15, 25, 35]`, `[0.0210, 0.2621]`), and no getter
+  walks a list of numbers.  statera has no floating-point type, so it
+  makes its users quote each number as text and parses it itself.
+- **Why:** B2 gave one number at a scale; nothing asked for a list
+  until statera's lists did.
+- **Fix:** `procedure Each_Scaled (T : Table; Key : String; Scale :
+  Positive; Process : not null access procedure (Item :
+  Long_Long_Integer))`: each entry taken exactly as `Get_Scaled`
+  takes one number (the same `Scaled_Knob_Of`, so the same proven
+  `Tabula.Decimals.Scaled` and the one float conversion).  The
+  walkers' policy: an absent key does nothing, a non-array warns and
+  does nothing, and an entry that is not a number, or does not fit at
+  the scale, warns and is skipped while the walk goes on.
+- **RED first:** `knobs.feature`: "A list of decimals reads as scaled
+  integers" -- `[15, "0.0210", 0.2621]` at a scale of one million is
+  15000000, 21000 and 262100.  The step is undefined, and
+  `Tabula_Config_Tests` fails to compile on `Each_Scaled`.
+
 ## 3. Features
 
 | file | new scenarios |
 |---|---|
 | `sections.feature` | a table lists its keys |
-| `knobs.feature` | scaled numbers, bare and quoted; dates; times; each out-of-range or wrong-typed value warns and falls back |
+| `knobs.feature` | scaled numbers, bare and quoted; a list of them (B8); dates; times; each out-of-range or wrong-typed value warns and falls back |
 | `emit.feature` | a document reads back the same; a key that needs quoting gets it; text that is not a number is refused as a number |
 | `csv.feature` | fields by header name; quoted fields; a ragged record and an unclosed quote are refused with their line; a file written reads back the same |
 
@@ -283,3 +308,15 @@ procedure Each_Row
     a container aggregate opening on a short hex-digit string
     (`["a"]`) for a bad brackets encoding.  fabula ends a doc string at
     a quote fence anywhere on a line, so a feature's CSV avoids `"""`.
+- **B8 (added after the build, at the user's decision):** the plan
+  gained an item, as built.  `Each_Scaled` takes the sketch's shape
+  with no fallback and no count: the other walkers have neither, an
+  absent list is already "nothing to walk", and the warnings are how a
+  caller learns an entry was skipped.  The visitor's parameter is
+  `Item`, as `Each_String`'s and `Each_Section`'s are.  An entry too
+  large warns `<key> entry out of range at a scale of N; skipped`, a
+  non-number `non-number <key> entry skipped`, matching the
+  `non-string` and `non-table` warnings.  The refactor put the three
+  walkers over one private `Each_Entry` (absent, non-array, the loop)
+  and named `Get_Scaled`'s out-of-range wording once; nothing either
+  existing walker or `Get_Scaled` returns or warns changed.
