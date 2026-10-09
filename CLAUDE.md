@@ -53,7 +53,7 @@ Two rules hold for every addition:
 
 - `src/core/` — the SPARK core (`Tabula.Decimals`, `Tabula.Toml_Text`,
   `Tabula.Toml_Source`, `Tabula.Csv_Scan`, and the root's calendar
-  types): every unit carries
+  types and `Continues_Codepoint`): every unit carries
   `SPARK_Mode`, does zero IO, and may `with` only other core units and
   sml (the CSV scanner is an sml machine; `sml` is a declared
   dependency that takes fabula's pin).
@@ -68,7 +68,9 @@ Two rules hold for every addition:
   carries its document's text, so a float's
   literal is read as written (`Tabula.Toml_Source` finds it by the
   place the parser recorded, `Tabula.Toml_Text.Decimal_Of` reads it).
-  The writer (`Tabula.Emit`) builds on the core's text functions and
+  The writer (`Tabula.Emit`) holds the lines of the table entry at
+  hand until a header ends it, so a `Document (Aligned)` can pad each
+  key to the entry's widest; it builds on the core's text functions and
   `Tabula.Staged_Files` (write beside, rename into place);
   `Tabula.Text_Lists` is the list of texts the writers take.  The CSV
   reader (`Tabula.Csv`) feeds the core scanner a block at a time.
@@ -193,9 +195,11 @@ Two rules hold for every addition:
 
 - What `Tabula.Emit` writes, `Tabula.Config` reads back to the same
   values; a number is written only when `Is_Number_Text` says it reads
-  back as written.  A document that refused anything is not saved, and
-  `Save` and the CSV `Close` land a file whole by a rename, or not at
-  all.
+  back as written.  A default-initialized `Document` is `Plain` and
+  writes `key = value` byte for byte as it always has; aligned keys
+  (`Document (Aligned)`) are the caller's choice, never a default.
+  A document that refused anything is not saved, and `Save` and the
+  CSV `Close` land a file whole by a rename, or not at all.
 - What the CSV `Writer` writes, `Each_Row` reads back the same; the
   writer refuses a record past the scanner's bounds rather than write
   one the reader would refuse.

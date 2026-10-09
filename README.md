@@ -72,7 +72,11 @@ keep the same spirit, and two rules hold for every part of it:
   names its key, and a document that refused anything is not saved.
   `Save` writes beside the path and renames, so the file in place is
   the old one or the whole new one.  What it writes reads back through
-  `Tabula.Config` to the values written.
+  `Tabula.Config` to the values written.  A `Document (Aligned)` lines
+  up the `=` signs of each table entry for a person to read, every key
+  padded to the widest of its own entry (the root's, a `[table]`'s, or
+  one `[[array]]` entry's); a plain `Document`, the default, writes
+  `key = value` as it always has.
 - **`Tabula.Csv`** — a CSV file read by its rows: `Each_Row` takes the
   first record as the header and hands each later one over, its fields
   by the header's names (`Field (Row, "entry_time")`) or by position.
@@ -91,7 +95,8 @@ keep the same spirit, and two rules hold for every part of it:
   the bounds refused, never cut.
 - **`Tabula.Toml_Text`** — the proven text of TOML scalars, both ways:
   keys bare or quoted, basic strings with their escapes, the decimal
-  text a writer may pass unquoted, dates and times.
+  text a writer may pass unquoted, dates and times, and a text's width
+  by codepoint.
 
 ## Use it
 
@@ -212,6 +217,28 @@ Tabula.Emit.Strings (Doc, "templates", ["CS_COMMON", "IN_ROTH"]);
 Tabula.Emit.Text (Doc, "entry_time", "10:10:11");
 Tabula.Emit.Number (Doc, "quantity_target", "0.0314");  --  decimal text
 Tabula.Emit.Save (Doc, Path, Ok);  --  whole or not at all
+```
+
+Or for a person to read, the `=` signs of each entry lined up:
+
+```ada
+Doc : Tabula.Emit.Document (Tabula.Emit.Aligned);
+...
+Tabula.Emit.Begin_Array_Table (Doc, "trades");
+Tabula.Emit.Strings (Doc, "templates", ["CS_COMMON", "IN_ROTH"]);
+Tabula.Emit.Text (Doc, "entry_time", "09:56:28");
+Tabula.Emit.Count (Doc, "entry_target", 35);
+Tabula.Emit.Count (Doc, "stoploss_target", 20);
+Tabula.Emit.Number (Doc, "quantity_target", "0.0308");
+```
+
+```toml
+[[trades]]
+templates       = ["CS_COMMON", "IN_ROTH"]
+entry_time      = "09:56:28"
+entry_target    = 35
+stoploss_target = 20
+quantity_target = 0.0308
 ```
 
 Read a CSV file by its rows, and write one:

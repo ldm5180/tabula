@@ -11,7 +11,7 @@ every value with its kind and its text, was added after B10 on
 `values` and is built.  B12, two fixes to loading -- a document that
 ends without a line end, and where a refusal is -- was added after B11
 on `load-fixes` and is built.  B13, keys aligned on their equals signs,
-was added after B12 on `aligned-keys`.
+was added after B12 on `aligned-keys` and is built.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -693,3 +693,33 @@ procedure Each_Row
     `Device_Error` ("Is a directory"): `Stream_IO` opens a directory and
     fails on the read, and so does the parser's own file read the
     fallback goes to.  It raised before B11 too.
+- **B13 (added after B12, at the user's decision):** a writer's
+  document for a person to read -- a bot lane's trades file -- wants
+  its `=` signs lined up per entry.  Built as planned, in three cycles
+  (the width, the layout, the scenario):
+  - `Tabula.Toml_Text.Width` counts the bytes that are not UTF-8
+    continuations, proved (`Width'Result <= Text'Length`).  The
+    continuation range was then named twice, Width's and
+    `Toml_Source`'s column count's, so it is named once in the root as
+    `Tabula.Continues_Codepoint`, which both core units already see.
+  - `Document (Layout : Key_Layout := Plain)`.  The document holds the
+    lines of the entry at hand -- a key's text and its value's, or a
+    comment line as it stands -- and writes them when a header ends
+    the entry; `Text_Of`, and so `Save`, reads the held lines after
+    the rest, so the entry at hand is aligned as it stands.  Both
+    layouts take one path, the pad width 0 when `Plain`, and the plain
+    document's text test is unchanged and passes: no existing output
+    moved.  A key refused (twice, or a value refused) is not held, so
+    it neither is written nor widens its entry.
+  - Tests: `Tabula_Emit_Tests` gained the aligned text of a trades file
+    (root keys, two `[[trades]]` entries of different widest keys, a
+    comment among keys, a quoted UTF-8 key), the entry at hand aligned
+    as it stands, and the round trip -- the same calls into a plain and
+    an aligned document, both saved, read back by the value walk to the
+    same items.  `emit.feature` gained a scenario over two new emits
+    steps (a document begun with its keys aligned; the saved file's
+    text), the text checked against a doc string and read back.
+  - *Not done:* a display width for the wide scripts (a CJK character
+    takes two columns in most monospaced fonts); a key is counted a
+    column a codepoint, which a config's keys -- ASCII, bare -- never
+    exceed.
