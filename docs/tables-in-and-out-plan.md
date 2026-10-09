@@ -10,7 +10,8 @@ list of lists, was added after B9 on `nested-lists` and is built.  B11,
 every value with its kind and its text, was added after B10 on
 `values` and is built.  B12, two fixes to loading -- a document that
 ends without a line end, and where a refusal is -- was added after B11
-on `load-fixes` and is built.
+on `load-fixes` and is built.  B13, keys aligned on their equals signs,
+was added after B12 on `aligned-keys`.
 
 tabula reads TOML knobs today.  This plan adds what statera
 (`~/git/statera/docs/statera-plan.md`) needs from the crate whose
@@ -393,13 +394,73 @@ procedure Each_Row
   forms.  `files.feature`: a file and a doc string that end with a date
   and a time load.
 
+### B13 -- Keys aligned on their equals signs
+
+- **Where:** `src/app/tabula-emit.ads/.adb` at `6af8926`: `Put_Pair`
+  (`tabula-emit.adb:60`), which writes every `key = value` line as it
+  comes, and `Begin_Header` (`:117`), which ends a table entry; the
+  private `Document` record (`tabula-emit.ads:92`).
+  `Tabula.Toml_Text` (core) for the width of a key's text.
+- **What is wrong:** a document `Emit` writes for a person to read and
+  edit -- a bot lane's trades file, one `[[trades]]` entry per trade --
+  has its `=` signs wherever each key ends, so a column of values does
+  not read as a column:
+
+  ```toml
+  [[trades]]
+  templates       = ["CS_COMMON", "IN_ROTH", "CS_AM", "R_0dte_CS_CCS"]
+  entry_time      = "09:56:28"
+  entry_target    = 35
+  stoploss_target = 20
+  quantity_target = 0.0308
+  ```
+
+  is what such a file looks like when a person writes it, and what
+  `Emit` cannot write.
+- **Why:** `Emit` writes each line as it is asked for; the widest key
+  of an entry is not known until the entry ends.
+- **Fix:** an opt-in layout, chosen when the document is made:
+  `type Key_Layout is (Plain, Aligned)` and `type Document (Layout :
+  Key_Layout := Plain) is private`.  `Doc : Document (Aligned)` pads
+  each key, after its text (quoted when it must be), to the width of
+  the widest key of the same table entry: the root's keys among the
+  root's, each `[table]` and each `[[array]]` entry on its own.  A
+  default-initialized `Document` is `Plain` and writes byte for byte
+  what it wrote before, so no caller changes.  The document holds the
+  lines of the entry at hand until the entry ends (a header, or
+  `Text_Of` and `Save`, which read the held lines with the rest);
+  comments keep their place among the keys and are written as they
+  were, and the blank line before a header is unchanged.  Every value
+  `Emit` writes is one line (an array on one line, a string's line
+  ends escaped), so no value spans lines.  A key's width is its count
+  of codepoints, so a quoted key that holds UTF-8 lines up with the
+  rest: `Tabula.Toml_Text.Width`, proved.  What an aligned document
+  writes reads back through `Tabula.Config` to the values written, as
+  a plain one does.
+
+  Why a discriminant, over the other places the choice could go: a
+  flag on `Begin_Table` and `Begin_Array_Table` would leave the
+  root's keys without one (no call begins the root) and would ride on
+  every header; a setter (`Align_Keys (Doc)`) could change the layout
+  half way through an entry; a constructor (`Doc : Document :=
+  Aligned_Document`) would do, but hides the choice in a field.  The
+  discriminant fixes the layout when the document is made, says it
+  where the document is declared, and its default keeps every
+  existing declaration what it was.
+- **RED first:** `Tabula_Toml_Text_Tests` fails to compile on `Width`;
+  `Tabula_Emit_Tests` on `Document (Aligned)`: the text of a document
+  with root keys, a comment among a table's keys, and two `[[trades]]`
+  entries whose widest keys differ, and that it saves and reads back
+  to the values written; `emit.feature` has an undefined step for a
+  document whose keys are aligned.
+
 ## 3. Features
 
 | file | new scenarios |
 |---|---|
 | `sections.feature` | a table lists its keys |
 | `knobs.feature` | scaled numbers, bare and quoted; a list of them (B8); dates; times; each out-of-range or wrong-typed value warns and falls back |
-| `emit.feature` | a document reads back the same; a key that needs quoting gets it; text that is not a number is refused as a number |
+| `emit.feature` | a document reads back the same; a key that needs quoting gets it; text that is not a number is refused as a number; a document whose keys are aligned lines up each entry's `=` signs and reads back the same (B13) |
 | `csv.feature` | fields by header name; quoted fields; a ragged record and an unclosed quote are refused with their line; a file written reads back the same |
 | `context.feature` | a reader's own listener hears its table's complaints, a section's among them; each walker, and a CSV file's rows, visited into the reader's own object (B9); a grid of lists, one list per option, a flat list as one option, and a grid's entry that is not a list (B10) |
 | `values.feature` | every value with its kind and its text, in file order; a decimal as written; dates inside a list; tables and lists walked in turn, to a visitor and to a procedure (B11) |
