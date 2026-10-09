@@ -40,7 +40,15 @@ Two rules hold for every addition:
   keeps it with every run and publishes it from main to
   https://ldm5180.github.io/tabula/
 - `make prove`   — SPARK proof, `--checks-as-errors=on`; must exit 0;
-  a new core unit is withed by `proof/src/core_closure_proof.ads`
+  a new core unit is withed by `proof/src/core_closure_proof.ads`.
+  Stopped after `PROVE_TIMEOUT` (30m).  It first runs
+  `tools/phase1_guard.py`, which drops the phase-1 ALIs when a
+  `gnatprove -u` left them disagreeing on a source's checksum (the state
+  in which gnatprove's gprbuild spins forever), and holds
+  `proof/obj/.prove.lock` across the guard and gnatprove, since two
+  gnatprove runs on one tree corrupt each other; a manual `gnatprove -u`
+  takes the same lock: `flock proof/obj/.prove.lock alr exec -- gnatprove
+  -P proof/proof.gpr -u <unit> ...`
 - `make format`  — `gnatformat --check` over all committed Ada sources
   (it reads `git ls-files`: stage a new file first).  gnatformat's
   lexer refuses a container aggregate opening on a short hex-digit
