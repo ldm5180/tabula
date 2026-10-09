@@ -24,6 +24,66 @@ package body Tabula.Emit is
       Append (Doc.Content, Line & ASCII.LF);
    end Put_Line;
 
+   ---------------------------------------------------------------------
+   --  The entry at hand: its lines held, and written when it ends.
+   ---------------------------------------------------------------------
+
+   procedure Hold (Doc : in out Document; Line : Held_Line) is
+   begin
+      Doc.Held.Append (Line);
+   end Hold;
+
+   --  The width of the widest key among Held.
+   function Widest_Key (Held : Held_Lines.Vector) return Natural is
+      Widest : Natural := 0;
+   begin
+      for Line of Held loop
+         if Line.Kind = Pair then
+            Widest :=
+              Natural'Max (Widest, Toml_Text.Width (To_String (Line.Text)));
+         end if;
+      end loop;
+      return Widest;
+   end Widest_Key;
+
+   --  The width Doc pads the keys of the entry at hand to: none when
+   --  Plain.
+   function Key_Width (Doc : Document) return Natural
+   is (if Doc.Layout = Aligned then Widest_Key (Doc.Held) else 0);
+
+   --  Key, then blanks to Width columns when it is narrower.
+   function Padded (Key : String; Width : Natural) return String
+   is (Key
+       & Ada.Strings.Fixed."*"
+           (Natural'Max (0, Width - Toml_Text.Width (Key)), ' '));
+
+   --  Line as it is written, a key padded to Width.
+   function Line_Text (Line : Held_Line; Width : Natural) return String
+   is (case Line.Kind is
+         when Pair     =>
+           Padded (To_String (Line.Text), Width)
+           & " = "
+           & To_String (Line.Value),
+         when Verbatim => To_String (Line.Text));
+
+   --  The lines of the entry at hand as they are written, each ended.
+   function Held_Text (Doc : Document) return String is
+      Width  : constant Natural := Key_Width (Doc);
+      Result : Unbounded_String;
+   begin
+      for Line of Doc.Held loop
+         Append (Result, Line_Text (Line, Width) & ASCII.LF);
+      end loop;
+      return To_String (Result);
+   end Held_Text;
+
+   --  End the entry at hand: its lines join the text.
+   procedure End_Entry (Doc : in out Document) is
+   begin
+      Append (Doc.Content, Held_Text (Doc));
+      Doc.Held.Clear;
+   end End_Entry;
+
    --  Whether Toml_Text can write S: its escapes still fit a String.
    function Fits (S : String) return Boolean
    is (S'Length <= Toml_Text.Max_Text_Length);
@@ -66,7 +126,11 @@ package body Tabula.Emit is
       end if;
       Claim_Key (Doc, Key, Ok);
       if Ok then
-         Put_Line (Doc, Toml_Text.Key_Text (Key) & " = " & Value_Text);
+         Hold
+           (Doc,
+            (Kind  => Pair,
+             Text  => To_Unbounded_String (Toml_Text.Key_Text (Key)),
+             Value => To_Unbounded_String (Value_Text)));
       end if;
    end Put_Pair;
 
@@ -80,9 +144,13 @@ package body Tabula.Emit is
    is (C in ASCII.NUL .. ASCII.US | ASCII.DEL
        and then C not in ASCII.HT | ASCII.LF);
 
+   --  Line as a comment: after a "# ", or a bare "#" when it is empty.
+   function Comment_Text (Line : String) return String
+   is (if Line = "" then "#" else "# " & Line);
+
    procedure Put_Comment_Line (Doc : in out Document; Line : String) is
    begin
-      Put_Line (Doc, (if Line = "" then "#" else "# " & Line));
+      Hold (Doc, (Verbatim, To_Unbounded_String (Comment_Text (Line))));
    end Put_Comment_Line;
 
    procedure Comment (Doc : in out Document; Text : String) is
@@ -124,6 +192,7 @@ package body Tabula.Emit is
          Refuse (Doc, Name & ": written twice");
          return;
       end if;
+      End_Entry (Doc);
       Doc.Top.Include (Name, Kind);
       Doc.Table := To_Unbounded_String (Name);
       Doc.Keys.Clear;
@@ -250,7 +319,7 @@ package body Tabula.Emit is
    is (To_String (Doc.Refused));
 
    function Text_Of (Doc : Document) return String
-   is (To_String (Doc.Content));
+   is (To_String (Doc.Content) & Held_Text (Doc));
 
    procedure Save (Doc : Document; Path : String; Ok : out Boolean) is
       File : Staged_Files.Staged_File;

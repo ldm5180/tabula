@@ -1,5 +1,6 @@
 with Tabula.Text_Lists;
 
+private with Ada.Containers.Vectors;
 private with Ada.Containers.Indefinite_Hashed_Maps;
 private with Ada.Containers.Indefinite_Hashed_Sets;
 private with Ada.Strings.Hash;
@@ -14,8 +15,17 @@ private with Ada.Strings.Unbounded;
 
 package Tabula.Emit is
 
-   --  Default-initialized: empty, nothing refused.
-   type Document is private;
+   --  How a document writes its key lines: Plain writes key = value;
+   --  Aligned pads each key to the width of the widest key in its table
+   --  entry (the root's keys, a [table]'s, or one [[array]] entry's), so
+   --  the entry's equals signs line up.  Comments and blank lines are
+   --  written as they are either way.
+   type Key_Layout is (Plain, Aligned);
+
+   --  Default-initialized: empty, nothing refused, its keys Plain.
+   --  Document (Aligned) aligns them; what it writes reads back as a
+   --  Plain document's does.
+   type Document (Layout : Key_Layout := Plain) is private;
 
    --  Text as comment lines, one per line of it; a control character
    --  other than a tab is refused.
@@ -86,15 +96,39 @@ private
         Hash                => Ada.Strings.Hash,
         Equivalent_Elements => "=");
 
-   --  The text so far, the first refusal, the names written at the root,
-   --  and the table keys now go to ("" at the root) with the keys
-   --  written in it.
-   type Document is record
+   --  What a line of the table entry at hand is: a key and its value,
+   --  or a line written as it stands (a comment).
+   type Held_Kind is (Pair, Verbatim);
+
+   --  A line of the table entry at hand, held until the entry ends so
+   --  that its keys can be aligned: Text is the key's text for a Pair,
+   --  and the whole line otherwise.
+   type Held_Line (Kind : Held_Kind := Verbatim) is record
+      Text : Ada.Strings.Unbounded.Unbounded_String;
+      case Kind is
+         when Pair =>
+            Value : Ada.Strings.Unbounded.Unbounded_String;
+
+         when Verbatim =>
+            null;
+      end case;
+   end record;
+
+   package Held_Lines is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Held_Line);
+
+   --  The text of the entries ended, the first refusal, the names written
+   --  at the root, the table keys now go to ("" at the root) with the
+   --  keys written in it, and the lines of the entry at hand.
+   type Document (Layout : Key_Layout := Plain) is record
       Content : Ada.Strings.Unbounded.Unbounded_String;
       Refused : Ada.Strings.Unbounded.Unbounded_String;
       Top     : Name_Maps.Map;
       Table   : Ada.Strings.Unbounded.Unbounded_String;
       Keys    : Key_Sets.Set;
+      Held    : Held_Lines.Vector;
    end record;
 
 end Tabula.Emit;

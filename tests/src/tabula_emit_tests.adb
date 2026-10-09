@@ -4,13 +4,15 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with AUnit.Assertions; use AUnit.Assertions;
 
 with Tabula.Config;
+with Tabula.Config.Values;
 with Tabula.Emit; use Tabula.Emit;
 
 with Tabula_World; use Tabula_World;
 
---  The text a document comes to, line by line; what it refuses and
---  that the first refusal is the one it names; and that Save writes it
---  whole, or nothing when it refused.
+--  The text a document comes to, line by line, plain and with its keys
+--  aligned; what it refuses and that the first refusal is the one it
+--  names; and that Save writes it whole, or nothing when it refused,
+--  and that what it saved reads back.
 
 package body Tabula_Emit_Tests is
 
@@ -178,7 +180,136 @@ package body Tabula_Emit_Tests is
          "a control in a comment");
    end Test_Refusals;
 
+   --  A trades file: keys at the root, two entries of an array of
+   --  tables whose widest keys differ, a comment among an entry's keys,
+   --  and a table whose quoted key holds UTF-8.
+   procedure Write_Trades (Doc : in out Document) is
+   begin
+      Text (Doc, "name", "lane");
+      Count (Doc, "retries", 3);
+      Begin_Array_Table (Doc, "trades");
+      Strings
+        (Doc, "templates", ["CS_COMMON", "IN_ROTH", "CS_AM", "R_0dte_CS_CCS"]);
+      Text (Doc, "entry_time", "09:56:28");
+      Comment (Doc, "targets");
+      Count (Doc, "entry_target", 35);
+      Count (Doc, "stoploss_target", 20);
+      Number (Doc, "quantity_target", "0.0308");
+      Begin_Array_Table (Doc, "trades");
+      Text (Doc, "entry_time", "10:10:11");
+      Count (Doc, "qty", 1);
+      Begin_Table (Doc, "notes");
+      Text (Doc, "caf" & Character'Val (16#C3#) & Character'Val (16#A9#), "x");
+      Flag (Doc, "abcdefg", True);
+   end Write_Trades;
+
+   procedure Test_Aligned (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      Doc : Document (Aligned);
+   begin
+      Write_Trades (Doc);
+      Assert
+        (Text_Of (Doc)
+         = Line ("name    = ""lane""")
+           & Line ("retries = 3")
+           & Line ("")
+           & Line ("[[trades]]")
+           & Line
+               ("templates       = [""CS_COMMON"", ""IN_ROTH"", ""CS_AM"","
+                & " ""R_0dte_CS_CCS""]")
+           & Line ("entry_time      = ""09:56:28""")
+           & Line ("# targets")
+           & Line ("entry_target    = 35")
+           & Line ("stoploss_target = 20")
+           & Line ("quantity_target = 0.0308")
+           & Line ("")
+           & Line ("[[trades]]")
+           & Line ("entry_time = ""10:10:11""")
+           & Line ("qty        = 1")
+           & Line ("")
+           & Line ("[notes]")
+           & Line
+               ("""caf"
+                & Character'Val (16#C3#)
+                & Character'Val (16#A9#)
+                & """  = ""x""")
+           & Line ("abcdefg = true"),
+         "each entry aligned on its own widest key:" & LF & Text_Of (Doc));
+      Assert (Refusal (Doc) = "", "and nothing refused");
+   end Test_Aligned;
+
+   procedure Test_Aligned_So_Far (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Doc : Document (Aligned);
+   begin
+      Count (Doc, "a", 1);
+      Count (Doc, "bbb", 2);
+      Assert
+        (Text_Of (Doc) = Line ("a   = 1") & Line ("bbb = 2"),
+         "the entry at hand is aligned as it stands:" & LF & Text_Of (Doc));
+      Count (Doc, "bbb", 3);
+      Number (Doc, "a_much_longer_key", "x");
+      Count (Doc, "cc", 4);
+      Assert
+        (Text_Of (Doc)
+         = Line ("a   = 1") & Line ("bbb = 2") & Line ("cc  = 4"),
+         "and a key refused is not written, nor widens it:"
+         & LF
+         & Text_Of (Doc));
+      Assert
+        (Refusal (Doc) = "bbb: written twice", "the first refusal is kept");
+   end Test_Aligned_So_Far;
+
+   --  Every value the document at Path holds, as a Value_Gatherer has it.
+   function Values_Saved (Path : String) return String is
+      Root   : Tabula.Config.Table;
+      Status : Tabula.Config.Load_Status;
+      Error  : Unbounded_String;
+      All_Of : Value_Gatherer;
+   begin
+      Load (Path, "saved", Root, Status, Error);
+      Assert
+        (Status = Tabula.Config.Loaded, Path & " loads: " & To_String (Error));
+      Tabula.Config.Values.Each_Value (Root, All_Of);
+      return Items (All_Of);
+   end Values_Saved;
+
    Saved_Name : constant String := "emitted.toml";
+   Plain_Name : constant String := "emitted-plain.toml";
+
+   procedure Test_Aligned_Reads_Back
+     (T : in out AUnit.Test_Cases.Test_Case'Class)
+   is
+      pragma Unreferenced (T);
+      Plain_Doc   : Document;
+      Aligned_Doc : Document (Aligned);
+      Ok          : Boolean;
+   begin
+      Clear_Scratch (Saved_Name);
+      Clear_Scratch (Plain_Name);
+      Write_Trades (Plain_Doc);
+      Write_Trades (Aligned_Doc);
+      Save (Plain_Doc, Scratch (Plain_Name), Ok);
+      Assert (Ok, "the plain document saves");
+      Save (Aligned_Doc, Scratch (Saved_Name), Ok);
+      Assert (Ok, "the aligned one saves");
+      Assert
+        (Contents (Scratch (Saved_Name)) = Text_Of (Aligned_Doc),
+         "as its text");
+      Assert
+        (Values_Saved (Scratch (Saved_Name))
+         = Values_Saved (Scratch (Plain_Name)),
+         "and reads back to the values the plain one does: "
+         & Values_Saved (Scratch (Saved_Name)));
+      Assert
+        (Ada.Strings.Unbounded.Index
+           (To_Unbounded_String (Values_Saved (Scratch (Saved_Name))),
+            "quantity_target:A_DECIMAL:0.0308")
+         > 0,
+         "among them the decimal as written: "
+         & Values_Saved (Scratch (Saved_Name)));
+   end Test_Aligned_Reads_Back;
 
    procedure Test_Save (T : in out AUnit.Test_Cases.Test_Case'Class) is
       pragma Unreferenced (T);
@@ -237,6 +368,14 @@ package body Tabula_Emit_Tests is
    begin
       Register_Routine (T, Test_Text'Access, "a document's text");
       Register_Routine (T, Test_First_Header'Access, "a document's start");
+      Register_Routine
+        (T, Test_Aligned'Access, "a document whose keys are aligned");
+      Register_Routine
+        (T, Test_Aligned_So_Far'Access, "the entry at hand, aligned");
+      Register_Routine
+        (T,
+         Test_Aligned_Reads_Back'Access,
+         "an aligned document reads back the same");
       Register_Routine (T, Test_Refusals'Access, "what a document refuses");
       Register_Routine (T, Test_Save'Access, "a document saved reads back");
       Register_Routine
