@@ -13,7 +13,7 @@ is
    --  Whether the byte C begins no codepoint of its own: a CR, which
    --  the LF after it makes one line end with, or a UTF-8 continuation.
    function Takes_No_Column (C : Character) return Boolean
-   is (C = ASCII.CR or else Character'Pos (C) in 16#80# .. 16#BF#);
+   is (C = ASCII.CR or else Continues_Codepoint (C));
 
    --  The column after Column that a tab advances to.
    function Tab_From (Column : Natural) return Natural

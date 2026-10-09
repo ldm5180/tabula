@@ -278,6 +278,18 @@ is
        then Key
        else String_Text (Key));
 
+   function Width (Text : String) return Natural is
+      Count : Natural := 0;
+   begin
+      for I in Text'Range loop
+         if not Continues_Codepoint (Text (I)) then
+            Count := Count + 1;
+         end if;
+         pragma Loop_Invariant (Count <= I - Text'First + 1);
+      end loop;
+      return Count;
+   end Width;
+
    ---------------------------------------------------------------------
    --  Numbers.
    ---------------------------------------------------------------------

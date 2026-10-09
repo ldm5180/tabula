@@ -58,6 +58,12 @@ is
    function Key_Text (Key : String) return String
    with Pre => Key'Length <= Max_Text_Length;
 
+   --  How many codepoints Text holds: its bytes less the UTF-8
+   --  continuations, the columns it takes when written, so a quoted key
+   --  that holds UTF-8 lines up with the rest.
+   function Width (Text : String) return Natural
+   with Post => Width'Result <= Text'Length;
+
    --  The most significant digits a decimal written as a TOML float may
    --  have: as many as a double holds exactly, so it reads back as
    --  written.

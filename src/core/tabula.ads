@@ -3,7 +3,8 @@
 --  CSV read by rows and written (Tabula.Csv), over a SPARK-proven core.
 --  Text in, text out, and nothing raises: a config file can degrade a
 --  run, never crash it.  The calendar values a TOML document holds are
---  declared here, so the reader and the writer share them.
+--  declared here, so the reader and the writer share them, and so is
+--  what a UTF-8 continuation is, which both count codepoints by.
 
 package Tabula
   with Pure, SPARK_Mode
@@ -38,5 +39,10 @@ is
       Minute : Minute_Number := 0;
       Second : Second_Number := 0;
    end record;
+
+   --  Whether the byte C continues a UTF-8 codepoint rather than begins
+   --  one: 2#10xx_xxxx#.
+   function Continues_Codepoint (C : Character) return Boolean
+   is (Character'Pos (C) in 16#80# .. 16#BF#);
 
 end Tabula;

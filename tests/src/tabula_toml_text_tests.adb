@@ -122,6 +122,29 @@ package body Tabula_Toml_Text_Tests is
          "and escaped as a string is");
    end Test_Keys;
 
+   procedure Test_Width (T : in out AUnit.Test_Cases.Test_Case'Class) is
+      pragma Unreferenced (T);
+      E_Acute : constant String :=
+        Character'Val (16#C3#) & Character'Val (16#A9#);
+      Euro    : constant String :=
+        Character'Val (16#E2#)
+        & Character'Val (16#82#)
+        & Character'Val (16#AC#);
+      Clef    : constant String :=
+        Character'Val (16#F0#)
+        & Character'Val (16#9D#)
+        & Character'Val (16#84#)
+        & Character'Val (16#9E#);
+   begin
+      Assert (Width ("") = 0, "the empty text");
+      Assert (Width ("entry_time") = 10, "ASCII, a column a byte");
+      Assert (Width ("caf" & E_Acute) = 4, "two bytes, one codepoint");
+      Assert (Width (Euro & Clef) = 2, "three bytes and four, one each");
+      Assert
+        (Width (Key_Text ("caf" & E_Acute)) = 6,
+         "a quoted key's width counts its quotes");
+   end Test_Width;
+
    procedure Test_Number_Text (T : in out AUnit.Test_Cases.Test_Case'Class) is
       pragma Unreferenced (T);
    begin
@@ -252,6 +275,7 @@ package body Tabula_Toml_Text_Tests is
         (T, Test_Quote_In_String'Access, "a quote in a string is escaped");
       Register_Routine (T, Test_Escapes'Access, "a basic string's escapes");
       Register_Routine (T, Test_Keys'Access, "a key, bare or quoted");
+      Register_Routine (T, Test_Width'Access, "a text's width, by codepoint");
       Register_Routine
         (T, Test_Number_Text'Access, "what the writer passes as a number");
       Register_Routine
