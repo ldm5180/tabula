@@ -6,7 +6,10 @@ Feature: A document written is read back the same
   reads back through the reader to the values written.  A key that
   needs quoting is quoted.  A number is written as decimal text, and
   text that is not a number, or a key written twice in one table, is
-  refused: the document names the key and is not saved.
+  refused: the document names the key and is not saved.  A document
+  made with its keys aligned lines up the equals signs of each table
+  entry, every key padded to the widest of its own entry, for a person
+  to read; it reads back the same as one without.
 
   Scenario: A document written is read back the same
     Given a new document
@@ -79,3 +82,34 @@ Feature: A document written is read back the same
     Then the document refused retries
     When the document is saved
     Then it was not saved
+
+  Scenario: A document whose keys are aligned lines up each entry's equals signs
+    Given a new document with its keys aligned
+    When the array table trades is begun
+    And the strings templates are written as "CS_COMMON,IN_ROTH"
+    And the text entry_time is written as "09:56:28"
+    And the count entry_target is written as 35
+    And the count stoploss_target is written as 20
+    And the number quantity_target is written as 0.0308
+    And the array table trades is begun
+    And the text entry_time is written as "10:10:11"
+    And the count qty is written as 1
+    And the document is saved
+    Then it was saved
+    And the saved document reads:
+      """toml
+      [[trades]]
+      templates       = ["CS_COMMON", "IN_ROTH"]
+      entry_time      = "09:56:28"
+      entry_target    = 35
+      stoploss_target = 20
+      quantity_target = 0.0308
+
+      [[trades]]
+      entry_time = "10:10:11"
+      qty        = 1
+      """
+    Given a config labelled "written" from the saved document
+    When every value is walked
+    Then the items were "trades:AN_ARRAY:[:A_TABLE:{templates:AN_ARRAY:[:A_TEXT:CS_COMMON,:A_TEXT:IN_ROTH],entry_time:A_TEXT:09:56:28,entry_target:AN_INTEGER:35,stoploss_target:AN_INTEGER:20,quantity_target:A_DECIMAL:0.0308},:A_TABLE:{entry_time:A_TEXT:10:10:11,qty:AN_INTEGER:1}]"
+    And nothing was warned

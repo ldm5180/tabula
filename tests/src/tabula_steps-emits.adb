@@ -22,6 +22,7 @@ package body Tabula_Steps.Emits is
      (A_Nothing,
       --  Writing.
       A_Begin,
+      A_Begin_Aligned,
       A_Comment,
       A_Table,
       A_Array_Table,
@@ -43,6 +44,7 @@ package body Tabula_Steps.Emits is
       A_Check_Unsaved,
       A_Fail_Unsaved,
       A_Fail_Saved,
+      A_Check_Text,
       A_Check_Refused);
 
    subtype Write_Action is Action_Kind range A_Begin .. A_Save;
@@ -107,8 +109,10 @@ package body Tabula_Steps.Emits is
       Then_Take (Ctx, E_Given);
    end Save_And_Settle;
 
-   --  A document with nothing written, as a scenario begins one.
-   Blank : Document;
+   --  A document with nothing written, as a scenario begins one, and
+   --  one whose keys are aligned.
+   Blank         : Document;
+   Aligned_Blank : Document (Aligned);
 
    procedure Write_Value (A : Write_Action; Ctx : in out Step_Context)
    with Pre => A in A_Text .. A_Time
@@ -147,6 +151,9 @@ package body Tabula_Steps.Emits is
       case A is
          when A_Begin          =>
             Ctx.W.Doc := Blank;
+
+         when A_Begin_Aligned  =>
+            Ctx.W.Doc := Aligned_Blank;
 
          when A_Comment        =>
             Comment (Ctx.W.Doc, Name);
@@ -215,6 +222,12 @@ package body Tabula_Steps.Emits is
          when A_Fail_Saved    =>
             Fabula.Check.Fail_Step (Ctx.R, "the document was saved");
 
+         when A_Check_Text    =>
+            Fabula.Check.Text_Equal
+              (Ctx.R,
+               Tabula_World.Contents (Tabula_World.Saved_Document),
+               Fabula.Args.Doc_String (Ctx.A) & ASCII.LF);
+
          when A_Check_Refused =>
             Fabula.Check.Is_True
               (Ctx.R,
@@ -261,6 +274,7 @@ package body Tabula_Steps.Emits is
    use Flow.Op;
 
    New_Document      : constant Ev := (Kind => E_New_Document);
+   New_Aligned       : constant Ev := (Kind => E_New_Aligned_Document);
    Write_Comment     : constant Ev := (Kind => E_Write_Comment);
    Begin_Table       : constant Ev := (Kind => E_Begin_Table);
    Begin_Array_Table : constant Ev := (Kind => E_Begin_Array_Table);
@@ -276,10 +290,12 @@ package body Tabula_Steps.Emits is
    Check_Saved       : constant Ev := (Kind => E_Check_Saved);
    Check_Unsaved     : constant Ev := (Kind => E_Check_Unsaved);
    Check_Refused     : constant Ev := (Kind => E_Check_Refused);
+   Check_Saved_Text  : constant Ev := (Kind => E_Check_Saved_Text);
 
    --!format off
    Table : constant Transition_Table :=
      [Unbegun + New_Document                    / A_Begin         >= Writing,
+      Unbegun + New_Aligned                     / A_Begin_Aligned >= Writing,
 
       Writing + Write_Comment                   / A_Comment       >= Writing,
       Writing + Begin_Table                     / A_Table         >= Writing,
@@ -304,9 +320,11 @@ package body Tabula_Steps.Emits is
       Saved   + Check_Saved                     / A_Check_Saved   >= Saved,
       Saved   + Check_Unsaved                   / A_Fail_Saved    >= Saved,
       Saved   + Check_Refused                   / A_Check_Refused >= Saved,
+      Saved   + Check_Saved_Text                / A_Check_Text    >= Saved,
       Unsaved + Check_Unsaved                   / A_Check_Unsaved >= Unsaved,
       Unsaved + Check_Saved                     / A_Fail_Unsaved  >= Unsaved,
-      Unsaved + Check_Refused                   / A_Check_Refused >= Unsaved];
+      Unsaved + Check_Refused                   / A_Check_Refused >= Unsaved,
+      Unsaved + Check_Saved_Text                / A_Fail_Unsaved  >= Unsaved];
    --!format on
 
    Current : State := Unbegun;
