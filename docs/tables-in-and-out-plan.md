@@ -270,15 +270,15 @@ procedure Each_Row
 - **Where:** `src/app/tabula-config.ads`, beside the walkers and their
   visitors; the body's `Each_Entry`, which every array walk goes
   through.
-- **What is wrong:** PRO's grid configs hold lists of lists -- the
-  outer list is the grid's options, each inner list one option's value
-  (`entry_targets = [[15, 25, 35]]`, `custom_filters = [['skip EOM',
-  'skip FOMC']]`, `day_of_week = [[2, 3, 4, 5]]`) -- and every walker
-  skips an entry that is an array, with a warning.  statera's PRO
-  converter therefore reads those knobs through ada_toml directly, a
-  second TOML reader beside tabula.
+- **What is wrong:** the legacy backtester's grid configs hold lists
+  of lists -- the outer list is the grid's options, each inner list one
+  option's value (`entry_targets = [[15, 25, 35]]`, `custom_filters =
+  [['skip EOM', 'skip FOMC']]`, `day_of_week = [[2, 3, 4, 5]]`) -- and
+  every walker skips an entry that is an array, with a warning.
+  statera's legacy-config converter therefore reads those knobs through
+  ada_toml directly, a second TOML reader beside tabula.
 - **Why:** nothing asked for a nested list until statera's converter
-  had to read PRO's grids.
+  had to read the legacy backtester's grids.
 - **Fix:** a walk of the inner arrays, in both styles:
   `type List_Visitor is limited interface; procedure Visit_List (V :
   in out List_Visitor; Item : Table) is abstract;` and `Each_List (T :
@@ -293,13 +293,13 @@ procedure Each_Row
   an absent key does nothing; a non-array warns and does nothing; an
   entry of a grid that is not an array warns and is skipped.  A flat
   list -- an array none of whose entries is an array, the empty one
-  among them -- is one option, the whole list, silently.  PRO reads
-  that shape two ways: its single-run loader takes `entry_targets =
-  [25, 35]` as the value (its own test fixtures write it so), while
-  its grid search takes each entry as an option, which for a
-  list-valued knob is a scalar its model rejects, so no run comes of
-  it.  One option is the reading under which the file means anything.
-  Nothing existing changes.
+  among them -- is one option, the whole list, silently.  The legacy
+  backtester reads that shape two ways: its single-run loader takes
+  `entry_targets = [25, 35]` as the value (its own test fixtures write
+  it so), while its grid search takes each entry as an option, which
+  for a list-valued knob is a scalar its model rejects, so no run
+  comes of it.  One option is the reading under which the file means
+  anything.  Nothing existing changes.
 - **RED first:** `context.feature`: "A grid of lists reads one list
   per option" -- `entry_targets = [[15, 25, 35], [20, 30]]` visited as
   numbers at a scale of 1 gathers `[15,25,35],[20,30]`.  The step is
@@ -311,14 +311,14 @@ procedure Each_Row
 - **Where:** a child of `Tabula.Config` (`src/app/tabula-config-values.ads`),
   beside `Each_Key`, whose file order it shares; ada_toml's
   `Location` (`src/toml.ads:133`) and `Any_Float` (`:47`).
-- **What is wrong:** statera's PRO converter keeps every key of a PRO
-  file -- its report lists each one, known to statera or not -- with
-  its kind, and reads them through ada_toml directly, a second TOML
-  reader beside tabula.  tabula cannot (1) read a date or a time inside
-  a list (`start_date = [2020-01-01]`), (2) say what kind a value is,
-  nor read a local or offset date-time at all, or (3) hand a float over
-  exactly without a floating-point type: `Get_Scaled` stops at a scale
-  of 10^9 and rounds.
+- **What is wrong:** statera's legacy-config converter keeps every
+  key of a legacy config -- its report lists each one, known to statera
+  or not -- with its kind, and reads them through ada_toml directly, a
+  second TOML reader beside tabula.  tabula cannot (1) read a date or a
+  time inside a list (`start_date = [2020-01-01]`), (2) say what kind
+  a value is, nor read a local or offset date-time at all, or (3) hand
+  a float over exactly without a floating-point type: `Get_Scaled`
+  stops at a scale of 10^9 and rounds.
 - **Why:** every getter asks for one knob by its key and its type;
   nothing needed a whole document until the converter did.
 - **Fix:** `type Value_Kind is (A_Table, An_Array, A_Text, An_Integer,
@@ -586,14 +586,15 @@ procedure Each_Row
     per step.  The warner's own recorder, the region states and the
     CSV procedure form's gatherer stay package state in the tests:
     the procedure forms they exercise carry no object.
-- **B10 (added after B9, at the user's decision):** statera's PRO
-  converter reads PRO's grids, lists of lists, through ada_toml
-  directly; the user chose to extend tabula so statera has one TOML
-  reader.  The item was written against tabula at `f8a6432` and PRO's
-  `src/config/grid_search.py` and `iterables.py`, whose
-  `separate_iterable_and_non_iterable_configs` takes a non-empty list
-  at an iterable path as the options and leaves anything else as the
-  one value -- which is where the flat-list reading above comes from.
+- **B10 (added after B9, at the user's decision):** statera's
+  legacy-config converter reads the legacy backtester's grids, lists of
+  lists, through ada_toml directly; the user chose to extend tabula so
+  statera has one TOML reader.  The item was written against tabula at
+  `f8a6432` and the legacy backtester's `src/config/grid_search.py` and
+  `iterables.py`, whose `separate_iterable_and_non_iterable_configs`
+  takes a non-empty list at an iterable path as the options and leaves
+  anything else as the one value -- which is where the flat-list
+  reading above comes from.
   The inner list is handed over as a `Table` rather than as a new
   type, so the walks a caller already knows read it, and the item's
   name (its key and place) rides in the table, private, for the
@@ -611,10 +612,10 @@ procedure Each_Row
   list), and `context.feature` three scenarios.  Nothing an existing
   getter or walker returns or warns changed; the private `Table`
   gained a `Name`.
-- **B11 (added after B10, at the user's decision):** statera's PRO
-  converter keeps every key of a PRO file with its kind and reads them
-  through ada_toml directly; the user chose one TOML reader, so tabula
-  walks every value.  As built, in eight cycles:
+- **B11 (added after B10, at the user's decision):** statera's
+  legacy-config converter keeps every key of a legacy config with its
+  kind and reads them through ada_toml directly; the user chose one
+  TOML reader, so tabula walks every value.  As built, in eight cycles:
   - The walk lives in a child, `Tabula.Config.Values`, so
     `Tabula.Config`'s body stays under the 1,000 lines a body may hold;
     the helpers both share -- `Within`, `Complain`, `Written_Entries`,

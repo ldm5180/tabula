@@ -80,7 +80,7 @@ Feature: A reader keeps what it hears in its own objects
     Then the items were "zeta,alpha,box"
 
   Scenario: A grid of lists reads one list per option
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       entry_targets = [[15, 25, 35], [20, 30]]
       """
@@ -89,7 +89,7 @@ Feature: A reader keeps what it hears in its own objects
     And its listener heard nothing
 
   Scenario: A flat list where a grid is read is one option
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       custom_filters = ['skip EOM', 'skip FOMC']
       """
@@ -98,7 +98,7 @@ Feature: A reader keeps what it hears in its own objects
     And its listener heard nothing
 
   Scenario: A grid's entry that is not a list is complained about and skipped
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       day_of_week = [[2, 3, 4, 5], 1]
       """

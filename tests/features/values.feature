@@ -10,7 +10,7 @@ Feature: A reader walks every value a document holds
   every value has a kind.
 
   Scenario: Every value is walked with its kind and its text
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       name = "roth"
       quantity = 3
@@ -22,7 +22,7 @@ Feature: A reader walks every value a document holds
     And its listener heard nothing
 
   Scenario: A table's values come in the order the file wrote them
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       zeta = 1
       alpha = 2
@@ -31,7 +31,7 @@ Feature: A reader walks every value a document holds
     Then the items were "zeta:AN_INTEGER:1,alpha:AN_INTEGER:2"
 
   Scenario: A decimal is the text the document wrote
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       bump = 0.10
       fine = 0.123456789012345678
@@ -41,7 +41,7 @@ Feature: A reader walks every value a document holds
     Then the items were "bump:A_DECIMAL:0.10,fine:A_DECIMAL:0.123456789012345678,small:A_DECIMAL:0.0015"
 
   Scenario: Dates inside a list are walked
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       entry_time = 09:30:00
       start_date = [2020-01-01]
@@ -51,7 +51,7 @@ Feature: A reader walks every value a document holds
     And its listener heard nothing
 
   Scenario: Tables and lists are walked in turn
-    Given a config labelled "pro config" heard by its own listener:
+    Given a config labelled "legacy config" heard by its own listener:
       """toml
       entry_targets = [[15, 25], [20]]
 

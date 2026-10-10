@@ -654,8 +654,8 @@ package body Tabula_Config_Tests is
       Assert (Items (Inner) = "inner,first", "a section's: " & Items (Inner));
    end Test_Key_Visitor;
 
-   --  A grid: lists of lists, as PRO writes its grid options, beside
-   --  knobs a grid walk does not take.
+   --  A grid: lists of lists, as the legacy backtester writes its grid
+   --  options, beside knobs a grid walk does not take.
    Grid_Sample : constant String :=
      "targets = [[15, 25, 35], [20, 30]]"
      & ASCII.LF
